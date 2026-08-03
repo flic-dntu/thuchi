@@ -200,7 +200,7 @@
   <div class="app-header">
     <div>
       <h1>💰 Sổ Thu Chi FLIC</h1>
-      <div class="ver">Phiên bản: V1.8.2</div>
+      <div class="ver">Phiên bản: V1.9.0</div>
     </div>
     <div class="row" style="gap:8px;">
       <div class="role-chip" id="roleChip" onclick="doLogout()">—</div>
@@ -900,13 +900,17 @@ function renderPhieuForm(loai){
         <div class="field"><label>Số hoá đơn/chứng từ</label><input type="text" id="ph_${loai}_soHoaDon" placeholder="VD: 2C26TNT_00000546 hoặc /" value="${editing?escapeHtml(editing.soHoaDon||''):''}"></div>
         <div class="field"><label>Số tiền (VNĐ)</label><input type="text" inputmode="numeric" id="ph_${loai}_soTien" value="${editing?formatNumber(editing.soTien):(sel&&sel.mucThu?formatNumber(sel.mucThu):'')}" oninput="formatSoTienInput(this)"></div>
       </div>
-      <div class="grid" style="grid-template-columns:2fr 1fr;margin-top:4px;">
+      <div class="grid" style="grid-template-columns:2fr 1fr 1fr;margin-top:4px;">
         <div class="field"><label>Người nộp tiền</label>
           <input type="text" id="ph_${loai}_nguoiNop" list="nguoiNopSuggestions_${loai}" placeholder="VD: Phạm Văn Bình" value="${editing?escapeHtml(editing.nguoiNop||''):''}">
           <datalist id="nguoiNopSuggestions_${loai}">${goiYTruong(loai,'nguoiNop').map(s=>`<option value="${escapeHtml(s)}"></option>`).join('')}</datalist>
         </div>
         <div class="field"><label>CCCD</label>
           <input type="text" inputmode="numeric" id="ph_${loai}_cccd" placeholder="VD: 075201001234" value="${editing?escapeHtml(editing.cccd||''):''}">
+        </div>
+        <div class="field"><label>Mã số thuế (MST)</label>
+          <input type="text" inputmode="numeric" id="ph_${loai}_mst" list="mstSuggestions_${loai}" placeholder="VD: 3604050030" value="${editing?escapeHtml(editing.mst||''):''}">
+          <datalist id="mstSuggestions_${loai}">${goiYTruong(loai,'mst').map(s=>`<option value="${escapeHtml(s)}"></option>`).join('')}</datalist>
         </div>
       </div>
       <label>Địa chỉ (không bắt buộc)</label>
@@ -1017,6 +1021,7 @@ function buildPhieuVoucherHtml(p){
         <div>${nguoiLabel}: <b>${escapeHtml(p.nguoiNop || p.hocVien || '.....................')}</b></div>
         ${p.diaChi? `<div style="margin-top:7px;">Địa chỉ: <b>${escapeHtml(p.diaChi)}</b></div>`:''}
         ${p.cccd? `<div style="margin-top:7px;">CCCD số: <b>${escapeHtml(p.cccd)}</b></div>`:''}
+        ${p.mst? `<div style="margin-top:7px;">Mã số thuế: <b>${escapeHtml(p.mst)}</b></div>`:''}
         ${p.hocVien && p.nguoiNop && p.hocVien!==p.nguoiNop ? `<div style="margin-top:7px;">Học viên: <b>${escapeHtml(p.hocVien)}</b></div>`:''}
         <div style="margin-top:7px;">${lyDoLabel}: <b>${escapeHtml(p.dienGiai || p.tenKhoan || '')}</b></div>
         <div style="margin-top:7px;">Số tiền: <b style="font-size:17px;">${formatNumber(p.soTien)} đ</b>
@@ -1169,6 +1174,7 @@ async function exportPhieuExcel(id){
     ...(p.hocVien && p.nguoiNop && p.hocVien!==p.nguoiNop ? [['Học viên', p.hocVien]] : []),
     ...(p.diaChi? [['Địa chỉ', p.diaChi]] : []),
     ...(p.cccd? [['CCCD số', p.cccd]] : []),
+    ...(p.mst? [['Mã số thuế', p.mst]] : []),
     [lyDoLabel, p.dienGiai||p.tenKhoan||''],
     ['Mã khoản', `${p.maKhoan} - ${p.tenKhoan||''}`],
     ['Số tiền', formatNumber(p.soTien)+' đ'],
@@ -1339,6 +1345,7 @@ async function savePhieu(loai){
   const nguoiNop = (document.getElementById(`ph_${loai}_nguoiNop`)||{value:''}).value.trim();
   const ngayThi = (document.getElementById(`ph_${loai}_ngayThi`)||{value:''}).value || '';
   const cccd = (document.getElementById(`ph_${loai}_cccd`)||{value:''}).value.trim();
+  const mst = (document.getElementById(`ph_${loai}_mst`)||{value:''}).value.trim();
   const hinhThuc = document.getElementById(`ph_${loai}_hinhThuc`).value;
   const nganHang = document.getElementById(`ph_${loai}_nganHang`).value.trim();
   const ghiChu = document.getElementById(`ph_${loai}_ghiChu`).value.trim();
@@ -1349,7 +1356,7 @@ async function savePhieu(loai){
   if(!dienGiai) dienGiai = dungDienGiai(loai);
   const editId = phieuEditingId[loai];   // V1.7.8 — phải khai báo TRƯỚC khi dùng ở dưới
   const data = {
-    loai, ngay, soHoaDon, maKhoan: d.maKhoan, tenKhoan: d.tenKhoan, dienGiai, hocVien, nguoiNop, ngayThi, diaChi, cccd, soTien,
+    loai, ngay, soHoaDon, maKhoan: d.maKhoan, tenKhoan: d.tenKhoan, dienGiai, hocVien, nguoiNop, ngayThi, diaChi, cccd, mst, soTien,
     soPhieu: (editId ? (phieuList.find(x=>x.id===editId)||{}).soPhieu || sinhSoPhieu(loai, ngay) : sinhSoPhieu(loai, ngay)),
     hinhThuc, nganHang, ghiChu,
     nhomChia: loai==='thu'? (d.nhomChia||null) : null,
@@ -1605,14 +1612,16 @@ function soQuyComputeData(){
   const asOf = openingBalanceSetting.asOfDate || '';
   let soDuDauKy = 0;
   let before;
+  // V1.9.0 — loại hẳn phiếu bút toán ghi sổ (CP-FLIC) khỏi Sổ Quỹ tiền mặt
+  const phieuTM = phieuList.filter(p=>!laButToan(p));
   if(asOf){
     soDuDauKy = openingBalanceSetting.amount || 0;
-    before = phieuList.filter(p=>p.ngay >= asOf && p.ngay < from);
+    before = phieuTM.filter(p=>p.ngay >= asOf && p.ngay < from);
   } else {
-    before = phieuList.filter(p=>p.ngay < from);
+    before = phieuTM.filter(p=>p.ngay < from);
   }
   before.forEach(p=>{ soDuDauKy += (p.loai==='thu'?p.soTien:-p.soTien); });
-  const inRange = phieuList.filter(p=>p.ngay>=from && p.ngay<=to).sort((a,b)=> a.ngay<b.ngay?-1: a.ngay>b.ngay?1: (a.createdAt||0)-(b.createdAt||0));
+  const inRange = phieuTM.filter(p=>p.ngay>=from && p.ngay<=to).sort((a,b)=> a.ngay<b.ngay?-1: a.ngay>b.ngay?1: (a.createdAt||0)-(b.createdAt||0));
   let running = soDuDauKy;
   const rows = inRange.map((p,i)=>{
     running += (p.loai==='thu'?p.soTien:-p.soTien);
@@ -1957,7 +1966,7 @@ function canDoiCompute(){
   const tongHoaHong = Object.values(groups).reduce((s,g)=>s+g.hoaHong,0);
   const tongDoanhThuFlic = Object.values(groups).reduce((s,g)=>s+g.flic,0);
   // Loại 3 mã chi trả cho DNTU/VN290/FLIC ra khỏi Chi phí vận hành (vì đã trừ sẵn trong Doanh Thu FLIC ở trên — tránh trừ trùng 2 lần)
-  const MA_CHI_DA_TRU_SAN = ['CP-DNTU','CP-VN290','CP-FLIC'];
+  const MA_CHI_DA_TRU_SAN = ['CP-DNTU','CP-VN290','CP-FLIC','CP-QUY-BGD','CP-QUY-DPRR'];
   const tongChi = chiRows.reduce((s,p)=>s+p.soTien,0);
   const chiDaTruSan = chiRows.filter(p=>MA_CHI_DA_TRU_SAN.includes(p.maKhoan)).reduce((s,p)=>s+p.soTien,0);
   const chiVanHanhThuc = tongChi - chiDaTruSan;
@@ -2222,6 +2231,53 @@ const CN_MA = {
   traQuyPT : 'CP-FLIC'         // chi trích Quỹ Phát triển Trung tâm 15%
 };
 const CN_KEYS = ['vn290','dntu','tncn','quyPT'];
+
+/* ===== V1.9.0 — QUỸ PHÁT TRIỂN TRUNG TÂM 15% (Điều 7, Điều 8 Quy chế) ===== */
+const QUY_MA = {
+  nap    : 'CP-FLIC',        // nạp 15% vào quỹ — BÚT TOÁN GHI SỔ, tiền vẫn nằm trong TK Trung tâm
+  chiBGD : 'CP-QUY-BGD',     // trích 7,5% lương P3 cho BGĐ & NLĐ — chi THẬT, tiền ra khỏi TK
+  chiDPRR: 'CP-QUY-DPRR'     // dùng quỹ dự phòng / tái đầu tư CSVC — chi THẬT
+};
+/* Mã là bút toán ghi sổ: KHÔNG ảnh hưởng tiền mặt, ẩn khỏi Sổ Quỹ */
+const MA_BUT_TOAN = [QUY_MA.nap];
+function laButToan(p){ return MA_BUT_TOAN.includes(p.maKhoan); }
+
+/* Tổng hợp tài khoản Quỹ phát triển, có chia theo tháng */
+function quyPTCompute(){
+  const den = cnMoc();
+  const rows = phieuList.filter(p=> p.loai==='chi' && (!den || p.ngay<=den));
+  const thang = {};
+  let nap=0, bgd=0, dprr=0;
+  rows.forEach(p=>{
+    const k=(p.ngay||'').slice(0,7); if(!k) return;
+    if(!thang[k]) thang[k]={nap:0,bgd:0,dprr:0};
+    if(p.maKhoan===QUY_MA.nap){ thang[k].nap+=p.soTien; nap+=p.soTien; }
+    else if(p.maKhoan===QUY_MA.chiBGD){ thang[k].bgd+=p.soTien; bgd+=p.soTien; }
+    else if(p.maKhoan===QUY_MA.chiDPRR){ thang[k].dprr+=p.soTien; dprr+=p.soTien; }
+  });
+  const keys=Object.keys(thang).filter(k=>thang[k].nap||thang[k].bgd||thang[k].dprr).sort();
+  let du=0;
+  const bang=keys.map(k=>{ const t=thang[k]; du += t.nap - t.bgd - t.dprr;
+    return {thang:k, ...t, cuoi:du}; });
+  return {nap, bgd, dprr, soDu: nap-bgd-dprr, bang};
+}
+/* 15% phải trích của một tháng — dùng cho nút "Nạp quỹ" */
+function quyPTPhaiTrichThang(thang){
+  let tong=0;
+  phieuList.forEach(p=>{
+    if(p.loai!=='thu' || (p.ngay||'').slice(0,7)!==thang) return;
+    tong += cnPhatSinh(p).quyPT;
+  });
+  return tong;
+}
+/* Các tháng đã có nghĩa vụ 15% nhưng CHƯA nạp quỹ */
+function quyPTThangChuaNap(){
+  const daNap={};
+  phieuList.forEach(p=>{ if(p.loai==='chi' && p.maKhoan===QUY_MA.nap) daNap[(p.ngay||'').slice(0,7)]=true; });
+  const set=new Set();
+  phieuList.forEach(p=>{ if(p.loai==='thu' && cnPhatSinh(p).quyPT>0) set.add((p.ngay||'').slice(0,7)); });
+  return [...set].sort().filter(k=>!daNap[k]);
+}
 const CN_NHOM_TC = [
   {key:'LUONG_NV', label:'Lương nhân viên'},
   {key:'LUONG_GV', label:'Lương giáo viên'},
@@ -2436,6 +2492,7 @@ function cnTonQuyHienTai(){
   phieuList.forEach(p=>{
     if(asOf && p.ngay < asOf) return;
     if(den && p.ngay > den) return;
+    if(laButToan(p)) return;   // V1.9.0 — bút toán ghi sổ, không phải tiền mặt
     ton += (p.loai==='thu' ? p.soTien : -p.soTien);
   });
   return ton;
@@ -3052,10 +3109,135 @@ function canDoiTienCompute(){
   const tc = congNoTCTong();
   const ton = cnTonQuyHienTai();
   const tongNoTuDong = d.conNo.vn290 + d.conNo.dntu + d.conNo.tncn + d.conNo.quyPT;
-  const tienThuc = ton - tongNoTuDong - tc.phaiTra - tc.duChi + tc.phaiThu;
+  const quy = quyPTCompute();
+  // V1.9.0 — tiền quỹ vẫn nằm trong tài khoản Trung tâm nhưng đã dành riêng, nên phải trừ ra
+  const tienThuc = ton - tongNoTuDong - quy.soDu - tc.phaiTra - tc.duChi + tc.phaiThu;
   const dinhKy = chiDinhKyChuaChi();
   const tongDinhKy = dinhKy.reduce((s,x)=> s + (+x.soTien||0), 0);
-  return {ton, cn:d.conNo, tc, tongNoTuDong, tienThuc, dinhKy, tongDinhKy, cuoiThang: tienThuc - tongDinhKy};
+  return {ton, cn:d.conNo, tc, tongNoTuDong, tienThuc, dinhKy, tongDinhKy, cuoiThang: tienThuc - tongDinhKy, quy};
+}
+
+/* ===== V1.9.0 — SỔ TÀI KHOẢN QUỸ PHÁT TRIỂN ===== */
+function renderSoQuyPhatTrien(){
+  const q = quyPTCompute();
+  const n = v => formatNumber(Math.round(v));
+  const chuaNap = quyPTThangChuaNap();
+  const tenT = k => `Tháng ${parseInt(k.slice(5),10)}/${k.slice(0,4)}`;
+  const thieuMa = [QUY_MA.chiBGD, QUY_MA.chiDPRR].filter(m=>!danhMucList.some(d=>d.maKhoan===m));
+  return `<div class="card">
+    <div class="row"><div class="card-title" style="margin:0;">🏦 Sổ tài khoản Quỹ Phát triển Trung tâm</div>
+      <button class="btn btn-outline btn-sm" onclick="exportQuyPTExcel()">📊 Xuất Excel</button></div>
+    <div class="hint">Theo Điều 7: trích 15% doanh thu vào quỹ. Điều 8: quỹ chia đôi — 50% lương P3 cho Ban giám đốc &amp; người lao động, 50% dự phòng rủi ro / tái đầu tư cơ sở vật chất.</div>
+    ${thieuMa.length ? `<div class="callout" style="border-left:4px solid var(--danger);background:#fdf4f4;padding:11px 13px;border-radius:0 9px 9px 0;margin:10px 0;">
+        <b>Chưa có ${thieuMa.length} mã khoản:</b> ${thieuMa.map(m=>`<code>${m}</code>`).join(' · ')}
+        <div style="margin-top:8px;"><button class="btn btn-primary btn-sm" onclick="taoMaKhoanQuy()">⚡ Tạo ${thieuMa.length} mã khoản này</button></div>
+      </div>`:''}
+    ${chuaNap.length ? `<div class="card" style="margin:10px 0;border:2px solid #0d7490;background:#f2fafc;">
+        <div style="font-weight:800;color:#0d7490;margin-bottom:6px;">⚡ Còn ${chuaNap.length} tháng chưa nạp quỹ</div>
+        <div class="hint" style="margin-bottom:8px;">Bấm để app tự tạo 2 phiếu: nạp 15% vào quỹ (bút toán ghi sổ) và trích 7,5% cho Ban giám đốc (chi thật).</div>
+        <div class="btn-row" style="flex-wrap:wrap;">
+          ${chuaNap.map(k=>{
+            const pt = quyPTPhaiTrichThang(k);
+            return `<button class="btn btn-primary btn-sm" onclick="napQuyThang('${k}')">⚡ ${tenT(k)} — ${n(pt)}đ</button>`;
+          }).join('')}
+        </div></div>`
+      : '<div class="hint" style="color:var(--ok);margin:10px 0;">✓ Đã nạp quỹ đủ mọi tháng có phát sinh.</div>'}
+    <div class="table-scroll"><table class="grid-table">
+      <thead><tr><th>Tháng</th><th style="text-align:right;">Nạp vào quỹ 15%</th>
+        <th style="text-align:right;">Trích BGĐ 7,5%</th><th style="text-align:right;">Dùng dự phòng</th>
+        <th style="text-align:right;">Số dư cuối</th></tr></thead>
+      <tbody>
+      ${q.bang.map(r=>`<tr>
+        <td><b>${tenT(r.thang)}</b></td>
+        <td style="text-align:right;color:var(--ok);">${r.nap?n(r.nap):'<span style="color:#c7ccd4;">—</span>'}</td>
+        <td style="text-align:right;color:#6b46c1;">${r.bgd?n(r.bgd):'<span style="color:#c7ccd4;">—</span>'}</td>
+        <td style="text-align:right;color:#0d7490;">${r.dprr?n(r.dprr):'<span style="color:#c7ccd4;">—</span>'}</td>
+        <td style="text-align:right;font-weight:700;color:${r.cuoi<0?'var(--danger)':'#0d7490'};">${n(r.cuoi)}</td></tr>`).join('')
+        || '<tr><td colspan="5" class="muted">Chưa có giao dịch quỹ nào.</td></tr>'}
+      <tr style="background:#eef8fa;font-weight:800;">
+        <td>SỐ DƯ QUỸ CÒN LẠI</td>
+        <td style="text-align:right;">${n(q.nap)}</td>
+        <td style="text-align:right;">${n(q.bgd)}</td>
+        <td style="text-align:right;">${n(q.dprr)}</td>
+        <td style="text-align:right;color:${q.soDu<0?'var(--danger)':'#0d7490'};font-size:15px;">${n(q.soDu)}</td></tr>
+      </tbody></table></div>
+    ${q.soDu<0 ? '<div class="hint" style="color:var(--danger);margin-top:8px;">⚠ Số dư quỹ đang ÂM — đã trích cho BGĐ nhiều hơn số đã nạp.</div>':''}
+  </div>`;
+}
+
+async function taoMaKhoanQuy(){
+  const sttMax = danhMucList.reduce((m,d)=>Math.max(m, d.stt||0), 0);
+  const ds = [
+    {maKhoan:QUY_MA.chiBGD, tenKhoan:'Chi lương P3 Ban giám đốc & người lao động (7,5% từ Quỹ PT)',
+     linhVuc:'Quỹ Phát triển', loai:'Trích Quỹ PT'},
+    {maKhoan:QUY_MA.chiDPRR, tenKhoan:'Chi sử dụng Quỹ dự phòng rủi ro / tái đầu tư CSVC (từ Quỹ PT)',
+     linhVuc:'Quỹ Phát triển', loai:'Trích Quỹ PT'}
+  ].filter(x=>!danhMucList.some(d=>d.maKhoan===x.maKhoan));
+  if(!ds.length){ showToast('Đã có đủ mã khoản'); return; }
+  try{
+    for(let i=0;i<ds.length;i++){
+      await db.collection('flic_danhmuc').add({
+        stt: sttMax+1+i, ...ds[i], mucThu:0, loaiPhieu:'chi',
+        nhomChia:null, thucThuPercent:null, laDieuChuyenNoiBo:false,
+        trichDNTU:false, trichQuyPT:false
+      });
+      logActivity(`Tạo mã khoản ${ds[i].maKhoan}`);
+    }
+    showToast(`Đã tạo ${ds.length} mã khoản`);
+  }catch(e){ fsErr(e); }
+}
+
+/* Nạp quỹ một tháng: tạo phiếu nạp 15% + phiếu trích 7,5% cho BGĐ */
+async function napQuyThang(thang){
+  const tong = quyPTPhaiTrichThang(thang);
+  if(tong<=0){ showToast('Tháng này không có nghĩa vụ trích quỹ'); return; }
+  const thieu = [QUY_MA.chiBGD].filter(m=>!danhMucList.some(d=>d.maKhoan===m));
+  if(thieu.length){ showToast('Hãy bấm "Tạo mã khoản" trước'); return; }
+  const [y,m] = thang.split('-');
+  const ngay = `${thang}-${String(new Date(+y,+m,0).getDate()).padStart(2,'0')}`;
+  const bgd = Math.round(tong/2);
+  const tenT = `tháng ${parseInt(m,10)}/${y}`;
+  if(!window.confirm) { /* môi trường không có confirm */ }
+  try{
+    await db.collection('flic_phieu').add({
+      loai:'chi', ngay, soHoaDon:'', maKhoan:QUY_MA.nap, tenKhoan:'Nạp Quỹ phát triển 15%',
+      dienGiai:`Trích nộp Quỹ phát triển Trung tâm 15% doanh thu ${tenT}`,
+      hocVien:'', nguoiNop:'', ngayThi:'', diaChi:'', cccd:'', mst:'',
+      soTien: Math.round(tong), hinhThuc:'CK', nganHang:'', ghiChu:'Bút toán ghi sổ — tiền vẫn nằm trong tài khoản Trung tâm',
+      soPhieu:'', createdAt: Date.now(), createdBy: currentUser?currentUser.username:''
+    });
+    await db.collection('flic_phieu').add({
+      loai:'chi', ngay, soHoaDon:'', maKhoan:QUY_MA.chiBGD, tenKhoan:'Chi lương P3 Ban giám đốc & người lao động',
+      dienGiai:`Chi lương P3 Ban giám đốc & người lao động 7,5% doanh thu ${tenT} (50% Quỹ phát triển)`,
+      hocVien:'', nguoiNop:'', ngayThi:'', diaChi:'', cccd:'', mst:'',
+      soTien: bgd, hinhThuc:'CK', nganHang:'', ghiChu:'Trích từ Quỹ phát triển theo Điều 8 Quy chế',
+      soPhieu: sinhSoPhieu('chi', ngay), createdAt: Date.now(), createdBy: currentUser?currentUser.username:''
+    });
+    logActivity(`Nạp Quỹ phát triển ${tenT}: ${formatNumber(Math.round(tong))}đ, trích BGĐ ${formatNumber(bgd)}đ`);
+    showToast(`Đã nạp quỹ ${tenT}`);
+  }catch(e){ fsErr(e); }
+}
+
+async function exportQuyPTExcel(){
+  if(typeof ExcelJS==='undefined'){ showToast('Đang tải thư viện Excel, thử lại sau'); return; }
+  const q = quyPTCompute();
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('Quy phat trien');
+  ws.columns=[{width:20},{width:22},{width:22},{width:22},{width:22}];
+  excelChenLogo(wb, ws, 5);
+  ws.addRow(['SỔ TÀI KHOẢN QUỸ PHÁT TRIỂN TRUNG TÂM']).font={bold:true,size:14};
+  ws.addRow(['Điều 7: trích 15% doanh thu · Điều 8: 50% lương P3 BGĐ, 50% dự phòng rủi ro']);
+  ws.addRow([]);
+  ws.addRow(['Tháng','Nạp vào quỹ 15%','Trích BGĐ 7,5%','Dùng dự phòng','Số dư cuối']).font={bold:true};
+  q.bang.forEach(r=>ws.addRow([`Tháng ${parseInt(r.thang.slice(5),10)}/${r.thang.slice(0,4)}`, r.nap, r.bgd, r.dprr, r.cuoi]));
+  ws.addRow(['SỐ DƯ QUỸ CÒN LẠI', q.nap, q.bgd, q.dprr, q.soDu]).font={bold:true};
+  for(let i=5;i<=ws.lastRow.number;i++) for(let c=2;c<=5;c++) ws.getRow(i).getCell(c).numFmt='#,##0';
+  const buf=await wb.xlsx.writeBuffer();
+  const blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  const url=URL.createObjectURL(blob); const a=document.createElement('a');
+  a.href=url; a.download=`Quy-phat-trien-FLIC-${cnToday()}.xlsx`;
+  document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+  logActivity('Xuất Excel Sổ Quỹ Phát triển');
 }
 
 function renderCanDoiTienTab(){
@@ -3085,6 +3267,20 @@ function renderCanDoiTienTab(){
         <div style="font-size:12px;opacity:.85;">DỰ KIẾN CUỐI THÁNG ${(cnMoc()||cnToday()).slice(5,7)}/${(cnMoc()||cnToday()).slice(0,4)}</div>
         <div style="font-size:27px;font-weight:800;margin-top:4px;">${n(d.cuoiThang)}đ</div>
         <div style="font-size:11.5px;opacity:.85;margin-top:6px;">Sau khi trừ tiếp ${n(d.tongDinhKy)}đ chi định kỳ chưa chi (${d.dinhKy.length} khoản)</div>
+      </div>
+      <div class="card" style="background:linear-gradient(135deg,#0d7490,#0a5a70);color:#fff;margin:0;">
+        <div style="font-size:12px;opacity:.85;">TỔNG QUỸ PHÁT TRIỂN CÒN LẠI</div>
+        <div style="font-size:11.5px;opacity:.8;">sau khi trích cho Ban giám đốc</div>
+        <div style="font-size:27px;font-weight:800;margin-top:4px;">${n(d.quy.soDu)}đ</div>
+        <div style="font-size:11.5px;opacity:.85;margin-top:6px;">Đã nạp ${n(d.quy.nap)}đ − trích BGĐ ${n(d.quy.bgd)}đ${d.quy.dprr?` − dùng dự phòng ${n(d.quy.dprr)}đ`:''}</div>
+      </div>
+      <div class="card" style="margin:0;background:#f6f9fb;">
+        <div class="small" style="font-weight:700;color:#0d7490;margin-bottom:6px;">CÁCH TÍNH QUỸ PHÁT TRIỂN</div>
+        <div class="row" style="padding:2px 0;font-size:12.5px;"><span>Đã nạp vào quỹ (CP-FLIC)</span><span>${n(d.quy.nap)}</span></div>
+        <div class="row" style="padding:2px 0;font-size:12.5px;color:#6b46c1;"><span>− Trích BGĐ (CP-QUY-BGD)</span><span>${n(d.quy.bgd)}</span></div>
+        <div class="row" style="padding:2px 0;font-size:12.5px;color:#0d7490;"><span>− Dùng dự phòng (CP-QUY-DPRR)</span><span>${n(d.quy.dprr)}</span></div>
+        <div class="row" style="padding:6px 0 0;margin-top:5px;border-top:1px solid var(--border);font-weight:800;font-size:13px;">
+          <span>Còn lại</span><span style="color:#0d7490;">${n(d.quy.soDu)}</span></div>
       </div>
     </div>
 
@@ -3121,6 +3317,13 @@ function renderCanDoiTienTab(){
         </tbody>
       </table></div>
       <div class="hint" style="margin-top:10px;">Các khoản nhập tay được quản lý ở tab <b>Công Nợ</b>. Khoản đã tất toán không còn tính vào đây.</div>
+      <div class="btn-row" style="margin-top:8px;">
+        <button class="btn btn-outline btn-sm" onclick="switchTab('congNo')">🧾 Sang tab Công Nợ</button>
+      </div>
+    </div>
+    ${renderSoQuyPhatTrien()}
+    <div style="display:none;">
+      <span></span>
       <div class="btn-row" style="margin-top:8px;">
         <button class="btn btn-outline btn-sm" onclick="switchTab('congNo')">🧾 Sang tab Công Nợ</button>
       </div>
