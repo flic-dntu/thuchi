@@ -200,7 +200,7 @@
   <div class="app-header">
     <div>
       <h1>💰 Sổ Thu Chi FLIC</h1>
-      <div class="ver">Phiên bản: V1.9.0</div>
+      <div class="ver">Phiên bản: V1.9.1</div>
     </div>
     <div class="row" style="gap:8px;">
       <div class="role-chip" id="roleChip" onclick="doLogout()">—</div>
@@ -3110,7 +3110,12 @@ function canDoiTienCompute(){
   const ton = cnTonQuyHienTai();
   const tongNoTuDong = d.conNo.vn290 + d.conNo.dntu + d.conNo.tncn + d.conNo.quyPT;
   const quy = quyPTCompute();
-  // V1.9.0 — tiền quỹ vẫn nằm trong tài khoản Trung tâm nhưng đã dành riêng, nên phải trừ ra
+  /* V1.9.1 — TỔNG QUỸ CÒN LẠI = phần chưa ghi sổ + phần đã ghi sổ − đã chi ra.
+     Việc lập phiếu CP-FLIC chỉ chuyển tiền từ "chưa ghi sổ" sang "đã ghi sổ",
+     KHÔNG làm thay đổi tổng tiền thuộc quỹ. Quỹ chỉ giảm khi thực sự chi ra. */
+  quy.chuaGhiSo = d.conNo.quyPT;
+  quy.tongConLai = quy.chuaGhiSo + quy.soDu;
+  // tiền quỹ vẫn nằm trong tài khoản Trung tâm nhưng đã dành riêng, nên phải trừ ra
   const tienThuc = ton - tongNoTuDong - quy.soDu - tc.phaiTra - tc.duChi + tc.phaiThu;
   const dinhKy = chiDinhKyChuaChi();
   const tongDinhKy = dinhKy.reduce((s,x)=> s + (+x.soTien||0), 0);
@@ -3271,16 +3276,18 @@ function renderCanDoiTienTab(){
       <div class="card" style="background:linear-gradient(135deg,#0d7490,#0a5a70);color:#fff;margin:0;">
         <div style="font-size:12px;opacity:.85;">TỔNG QUỸ PHÁT TRIỂN CÒN LẠI</div>
         <div style="font-size:11.5px;opacity:.8;">sau khi trích cho Ban giám đốc</div>
-        <div style="font-size:27px;font-weight:800;margin-top:4px;">${n(d.quy.soDu)}đ</div>
-        <div style="font-size:11.5px;opacity:.85;margin-top:6px;">Đã nạp ${n(d.quy.nap)}đ − trích BGĐ ${n(d.quy.bgd)}đ${d.quy.dprr?` − dùng dự phòng ${n(d.quy.dprr)}đ`:''}</div>
+        <div style="font-size:27px;font-weight:800;margin-top:4px;">${n(d.quy.tongConLai)}đ</div>
+        <div style="font-size:11.5px;opacity:.85;margin-top:6px;">Nghĩa vụ 15% ${n(d.quy.chuaGhiSo + d.quy.nap)}đ − đã trích BGĐ ${n(d.quy.bgd)}đ${d.quy.dprr?` − dùng dự phòng ${n(d.quy.dprr)}đ`:''}</div>
       </div>
       <div class="card" style="margin:0;background:#f6f9fb;">
         <div class="small" style="font-weight:700;color:#0d7490;margin-bottom:6px;">CÁCH TÍNH QUỸ PHÁT TRIỂN</div>
-        <div class="row" style="padding:2px 0;font-size:12.5px;"><span>Đã nạp vào quỹ (CP-FLIC)</span><span>${n(d.quy.nap)}</span></div>
+        <div class="row" style="padding:2px 0;font-size:12.5px;font-weight:700;"><span>Nghĩa vụ trích 15% (tổng)</span><span>${n(d.quy.chuaGhiSo + d.quy.nap)}</span></div>
+        <div class="row" style="padding:2px 0;font-size:12px;color:var(--muted);"><span style="padding-left:14px;">├ chưa lập phiếu ghi sổ</span><span>${n(d.quy.chuaGhiSo)}</span></div>
+        <div class="row" style="padding:2px 0;font-size:12px;color:var(--muted);"><span style="padding-left:14px;">└ đã ghi sổ (CP-FLIC)</span><span>${n(d.quy.nap)}</span></div>
         <div class="row" style="padding:2px 0;font-size:12.5px;color:#6b46c1;"><span>− Trích BGĐ (CP-QUY-BGD)</span><span>${n(d.quy.bgd)}</span></div>
         <div class="row" style="padding:2px 0;font-size:12.5px;color:#0d7490;"><span>− Dùng dự phòng (CP-QUY-DPRR)</span><span>${n(d.quy.dprr)}</span></div>
         <div class="row" style="padding:6px 0 0;margin-top:5px;border-top:1px solid var(--border);font-weight:800;font-size:13px;">
-          <span>Còn lại</span><span style="color:#0d7490;">${n(d.quy.soDu)}</span></div>
+          <span>Còn lại</span><span style="color:#0d7490;">${n(d.quy.tongConLai)}</span></div>
       </div>
     </div>
 
@@ -3295,7 +3302,7 @@ function renderCanDoiTienTab(){
           ${dong('Nợ Công ty VN290', -d.cn.vn290, 'var(--danger)', 'Lệ phí thi Cambridge thu hộ, chưa chuyển trả')}
           ${dong('Nợ DNTU', -d.cn.dntu, 'var(--danger)', 'Trích nộp doanh thu chưa nộp')}
           ${dong('Thuế TNCN giữ hộ người lao động', -d.cn.tncn, 'var(--warn)', 'Đã khấu trừ nhưng chưa nộp cơ quan thuế')}
-          ${dong('Quỹ Phát triển Trung tâm 15%', -d.cn.quyPT, 'var(--warn)', 'Trích trên phần thực nhận, áp dụng từ '+(tyLeConfig.quyPTTuNgay||'—')+' — chưa trích thực tế')}
+          ${dong('Quỹ Phát triển Trung tâm 15%', -d.quy.tongConLai, '#0d7490', 'Tổng quỹ còn lại: chưa ghi sổ '+n(d.quy.chuaGhiSo)+' + đã ghi sổ '+n(d.quy.nap)+' − đã trích BGĐ '+n(d.quy.bgd))}
           <tr><td colspan="2" style="background:#fafbfc;font-weight:700;padding-top:10px;">TRỪ — Nợ phải trả (nhập tay)</td></tr>
           ${Object.keys(d.tc.theoNhom).filter(k=>d.tc.theoNhom[k].phaiTra>0).map(k=>dong(nhomLbl(k), -d.tc.theoNhom[k].phaiTra, 'var(--danger)')).join('')
             || '<tr><td class="muted">Chưa nhập khoản nợ nào</td><td style="text-align:right;">0</td></tr>'}
