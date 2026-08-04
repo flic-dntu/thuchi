@@ -200,7 +200,7 @@
   <div class="app-header">
     <div>
       <h1>💰 Sổ Thu Chi FLIC</h1>
-      <div class="ver">Phiên bản: V1.9.3</div>
+      <div class="ver">Phiên bản: V1.9.4</div>
     </div>
     <div class="row" style="gap:8px;">
       <div class="role-chip" id="roleChip" onclick="doLogout()">—</div>
@@ -884,12 +884,17 @@ function isoOffsetDays(n){
 }
 let phieuEditingId = {thu:null, chi:null};
 function tonQuyHienTai(){
-  // Tồn quỹ = Số dư đầu kỳ gốc (nếu có khai báo) + tổng Thu-Chi của các phiếu từ ngày áp dụng trở đi (hoặc toàn bộ nếu chưa khai báo Số dư đầu kỳ gốc)
+  // Tồn quỹ = Số dư đầu kỳ gốc (nếu có khai báo) + tổng Thu-Chi của các phiếu từ ngày áp dụng trở đi
+  // V1.9.4 — LOẠI phiếu bút toán ghi sổ (CP-FLIC) cho ĐỒNG BỘ với tab Sổ Quỹ và tab Cân Đối.
+  //          V1.9.0-1.9.3 quên chỗ này nên 3 nơi hiển thị 3 con số khác nhau.
   const asOf = openingBalanceSetting.asOfDate || '';
   let base = 0, rows = phieuList;
   if(asOf){ base = openingBalanceSetting.amount || 0; rows = phieuList.filter(p=>p.ngay>=asOf); }
   let thu=0, chi=0;
-  rows.forEach(p=>{ if(p.loai==='thu') thu+=p.soTien||0; else chi+=p.soTien||0; });
+  rows.forEach(p=>{
+    if(typeof laButToan==='function' && laButToan(p)) return;
+    if(p.loai==='thu') thu+=p.soTien||0; else chi+=p.soTien||0;
+  });
   return base + thu - chi;
 }
 function renderPhieuForm(loai){
