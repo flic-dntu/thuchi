@@ -200,7 +200,7 @@
   <div class="app-header">
     <div>
       <h1>💰 Sổ Thu Chi FLIC</h1>
-      <div class="ver">Phiên bản: V2.0.0</div>
+      <div class="ver">Phiên bản: V2.0.2</div>
     </div>
     <div class="row" style="gap:8px;">
       <div class="role-chip" id="roleChip" onclick="doLogout()">—</div>
@@ -2585,11 +2585,13 @@ function cnTNCNMode(p){
   return thuoc ? 'net' : 'off';
 }
 function cnCoTNCN(p){ return cnTNCNMode(p) !== 'off'; }
-/* Thuế TNCN của một phiếu chi */
+/* Thuế TNCN của một phiếu chi.
+   V2.0.2 — LÀM TRÒN NGAY TỪNG PHIẾU về đơn vị đồng. Nếu để số lẻ rồi mới cộng,
+   tổng của app sẽ lệch 1-2 đồng so với khi kế toán cộng tay từng dòng. */
 function cnTinhTNCN(soTien, mode){
   if(mode === 'off') return 0;
-  if(mode === 'gross') return soTien * ((+tyLeConfig.tncnTyLe || 10)/100);
-  return soTien / (+tyLeConfig.tncnChia || 9);
+  if(mode === 'gross') return Math.round(soTien * ((+tyLeConfig.tncnTyLe || 10)/100));
+  return Math.round(soTien / (+tyLeConfig.tncnChia || 9));
 }
 function cnPhatSinh(p){
   const z = {vn290:0, dntu:0, tncn:0, quyPT:0};
@@ -2808,6 +2810,15 @@ function renderKhoiTNCN(){
     <div class="card-title" style="color:#9a6a00;">🧾 Thuế TNCN khấu trừ giữ hộ</div>
     <div class="hint">Số chi ghi trong sổ là <b>số người nhận thực nhận</b> (đã trừ thuế), nên thuế = <b>thực chi ÷ ${chia}</b>.
       Chỉ tính từ <b>${tu?fmtDateVN(tu):'đầu kỳ'}</b> — quý 1 và quý 2/2026 đã quyết toán xong với cơ quan thuế.</div>
+    ${(()=>{ const chua = TNCN_MA_MAC_DINH.filter(ma=> danhMucList.some(d=>d.maKhoan===ma) && !danhMucList.find(d=>d.maKhoan===ma).nopTNCN);
+      const thieu = TNCN_MA_MAC_DINH.filter(ma=> !danhMucList.some(d=>d.maKhoan===ma));
+      if(!chua.length && !thieu.length) return `<div class="hint" style="color:var(--ok);margin:8px 0;">✓ Đã đánh dấu đủ ${TNCN_MA_MAC_DINH.length} mã khoản khấu trừ TNCN trong Danh Mục.</div>`;
+      return `<div style="margin:10px 0;padding:11px 13px;border-radius:9px;background:#fdf4f4;border-left:4px solid var(--danger);">
+        ${chua.length? `<b style="color:var(--danger);">Còn ${chua.length} mã chưa đánh dấu trong Danh Mục:</b> ${chua.map(m=>`<code>${escapeHtml(m)}</code>`).join(' · ')}` : ''}
+        ${thieu.length? `<div style="margin-top:6px;"><b style="color:var(--danger);">Chưa tạo ${thieu.length} mã:</b> ${thieu.map(m=>`<code>${escapeHtml(m)}</code>`).join(' · ')}</div>` : ''}
+        ${chua.length? `<div style="margin-top:8px;"><button class="btn btn-primary btn-sm" onclick="danhDauMaTNCN()">⚡ Đánh dấu ${chua.length} mã này</button></div>`:''}
+        <div class="small muted" style="margin-top:6px;">App vẫn tính đúng dù chưa bấm — đánh dấu chỉ để Danh Mục thể hiện rõ ràng cho kế toán xem.</div>
+      </div>`; })()}
     <div class="row" style="gap:8px;align-items:center;margin:8px 0;flex-wrap:wrap;">
       <span class="small muted">Áp dụng từ ngày</span>
       <input type="date" style="max-width:170px;margin:0;" id="cn_tncnTuNgay" value="${tu}">
