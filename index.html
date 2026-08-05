@@ -200,7 +200,7 @@
   <div class="app-header">
     <div>
       <h1>💰 Sổ Thu Chi FLIC</h1>
-      <div class="ver">Phiên bản: V1.9.4</div>
+      <div class="ver">Phiên bản: V1.9.9</div>
     </div>
     <div class="row" style="gap:8px;">
       <div class="role-chip" id="roleChip" onclick="doLogout()">—</div>
@@ -361,7 +361,11 @@ let activeTab = 'phieuThu';
 let congNoList = [];
 let congNoDauKy = {ngayBatDau:'', vn290:0, dntu:0, tncn:0, quyPT:0};
 /* V1.7.1 — tỷ lệ trích nộp tính TRÊN phần Trung tâm THỰC NHẬN */
-let tyLeConfig = {dntu:20, quyPT:15, quyPTTuNgay:'2026-03-01'};
+let tyLeConfig = {dntu:20, quyPT:15, quyPTTuNgay:'2026-03-01', tncnChia:9, tncnTyLe:10, tncnTuNgay:'2026-07-01'};
+/* V1.9.8 — Số chi ghi trong sổ là số NGƯỜI NHẬN THỰC NHẬN (đã trừ thuế).
+   Quy ngược: thu nhập trước thuế = thực chi ÷ 0,9 ; thuế 10% = thực chi ÷ 9 */
+/* V1.9.6 — 5 mã chi có khấu trừ thuế TNCN 10% theo quy ước của Trung tâm */
+const TNCN_MA_MAC_DINH = ['CP-Luong-L2','CP-Luong-L3','CP-HĐDV','CP-HDT','CP-QUY-BGD'];
 /* V1.7.2 */
 let chiDinhKyList = [];          // khoản chi định kỳ hàng tháng
 let cnAsOf = '';                 // mốc "tính đến ngày" (rỗng = tính hết)
@@ -595,7 +599,7 @@ function listenAll(){
   }, fsErr);
 
   db.collection('flic_settings').doc('tyLeTrichNop').onSnapshot(snap=>{
-    if(snap.exists) tyLeConfig = Object.assign({dntu:20, quyPT:15, quyPTTuNgay:'2026-03-01'}, snap.data());
+    if(snap.exists) tyLeConfig = Object.assign({dntu:20, quyPT:15, quyPTTuNgay:'2026-03-01', tncnChia:9, tncnTyLe:10, tncnTuNgay:'2026-07-01'}, snap.data());
     if(activeTab==='congNo') renderCongNoTab();
     if(activeTab==='canDoiTien') renderCanDoiTienTab();
     if(activeTab==='canDoi') renderCanDoiTab();
@@ -715,6 +719,7 @@ function openEditDanhMuc(id){
       <div class="field" style="display:flex;gap:16px;align-items:center;margin-top:6px;">
         <label style="display:flex;align-items:center;gap:6px;margin:0;"><input type="checkbox" id="dmTrichDNTU" ${d.trichDNTU?'checked':''}> Trích DNTU 20%</label>
         <label style="display:flex;align-items:center;gap:6px;margin:0;"><input type="checkbox" id="dmTrichQuyPT" ${d.trichQuyPT?'checked':''}> Trích Quỹ PT 15%</label>
+        <label style="display:flex;align-items:center;gap:6px;margin:0;"><input type="checkbox" id="dmNopTNCN" ${d.nopTNCN?'checked':''}> Khấu trừ TNCN 10%</label>
       </div>
       <div class="hint" style="margin-top:4px;">Cả hai khoản trích đều tính TRÊN phần Trung tâm thực nhận. VD thực nhận 100.000 → DNTU 20.000 + Quỹ PT 15.000 → FLIC còn 65.000.</div>
     </div>
@@ -749,9 +754,10 @@ function saveDanhMuc(){
   const laDieuChuyenNoiBo = document.getElementById('dmDieuChuyenNoiBo').checked;
   const trichDNTU  = loaiPhieu==='thu' && document.getElementById('dmTrichDNTU').checked;
   const trichQuyPT = loaiPhieu==='thu' && document.getElementById('dmTrichQuyPT').checked;
+  const nopTNCN = loaiPhieu==='chi' && (document.getElementById('dmNopTNCN')||{checked:false}).checked;
   if(!maKhoan || !tenKhoan){ showToast('Nhập đủ Mã khoản và Tên khoản'); return; }
   if(danhMucList.some(d=>d.maKhoan===maKhoan && d.id!==editingDanhMucId)){ showToast('Mã khoản này đã tồn tại'); return; }
-  const data = {stt, maKhoan, tenKhoan, mucThu, linhVuc, loai, loaiPhieu, nhomChia, thucThuPercent, laDieuChuyenNoiBo, trichDNTU, trichQuyPT};
+  const data = {stt, maKhoan, tenKhoan, mucThu, linhVuc, loai, loaiPhieu, nhomChia, thucThuPercent, laDieuChuyenNoiBo, trichDNTU, trichQuyPT, nopTNCN};
   const p = editingDanhMucId ? db.collection('flic_danhmuc').doc(editingDanhMucId).update(data) : db.collection('flic_danhmuc').add(data);
   p.then(()=>{ logActivity(`${editingDanhMucId?'Sửa':'Thêm'} khoản ${maKhoan}`); showToast('Đã lưu'); closeEditDanhMuc(); }).catch(fsErr);
 }
@@ -790,7 +796,8 @@ function importDanhMucExcel(evt){
           thucThuPercent: (r[8]!==undefined && r[8]!=='') ? parseFloat(r[8]) : null,
           // V1.7.1 — 2 cột đánh dấu "x": có phải trích DNTU 20% / Quỹ PT 15% không
           trichDNTU:  String(r[9]||'').trim().toLowerCase()==='x',
-          trichQuyPT: String(r[10]||'').trim().toLowerCase()==='x'
+          trichQuyPT: String(r[10]||'').trim().toLowerCase()==='x',
+          nopTNCN:    String(r[11]||'').trim().toLowerCase()==='x'
         };
         const existing = danhMucList.find(d=>d.maKhoan===maKhoan);
         if(existing){ await db.collection('flic_danhmuc').doc(existing.id).update(data); updated++; }
@@ -970,6 +977,7 @@ function renderPhieuForm(loai){
         <button data-f="homnay" class="${phieuRecentFilter[loai]==='homnay'?'active':''}" onclick="setPhieuRecentFilter('${loai}','homnay')">Hôm nay</button>
         <button data-f="tatca" class="${phieuRecentFilter[loai]==='tatca'?'active':''}" onclick="setPhieuRecentFilter('${loai}','tatca')">Tất cả</button>
       </div>
+      <div id="phieuRecentTong_${loai}" style="margin-top:8px;"></div>
       ${loai==='thu' ? `<div class="btn-row" style="margin-top:8px;">
         <button class="btn btn-primary btn-sm" style="background:#0d7490;border-color:#0d7490;" onclick="exportPhieuThuKeToan()">📊 Xuất Excel tổng cho kế toán</button>
         <span class="small muted" style="align-self:center;">xuất tất cả phiếu đang hiển thị theo bộ lọc đang chọn</span>
@@ -1235,6 +1243,22 @@ function renderPhieuRecentList(loai){
   else if(filter==='homqua') list = list.filter(p=>p.ngay===isoOffsetDays(-1));
   else if(filter==='homnay') list = list.filter(p=>p.ngay===isoOffsetDays(0));
   else list = list.slice(0,30); // Tất cả — vẫn giới hạn 30 dòng gần nhất để không quá nặng
+  // V1.9.5 — dòng tổng theo bộ lọc đang chọn
+  const elTong = document.getElementById('phieuRecentTong_'+loai);
+  if(elTong){
+    const tong = list.reduce((s,p)=>s+(p.soTien||0),0);
+    const nhan = {homkia:'Hôm kia '+fmtDateVN(isoOffsetDays(-2)), homqua:'Hôm qua '+fmtDateVN(isoOffsetDays(-1)),
+                  homnay:'Hôm nay '+fmtDateVN(isoOffsetDays(0))}[filter] || 'Tất cả (30 phiếu gần nhất)';
+    const mau = loai==='thu' ? 'var(--ok)' : 'var(--danger)';
+    const nen = loai==='thu' ? '#eaf6ef' : '#fdeeee';
+    elTong.innerHTML = list.length
+      ? `<div style="background:${nen};border:1px solid ${mau};border-radius:11px;padding:11px 14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+           <div><b style="font-size:14px;">TỔNG ${loai==='thu'?'THU':'CHI'} — ${escapeHtml(nhan)}</b>
+             <div class="small muted">${list.length} phiếu</div></div>
+           <b style="font-size:22px;color:${mau};">${loai==='thu'?'+':'-'}${formatNumber(tong)}đ</b>
+         </div>`
+      : '';
+  }
   if(!list.length){ el.innerHTML = '<div class="empty"><div class="ico">📄</div>Không có phiếu nào</div>'; return; }
   el.innerHTML = list.map(p=>`
     <div class="list-row" style="flex-direction:column;align-items:stretch;">
@@ -1734,7 +1758,7 @@ async function exportPhieuThuKeToan(){
       1,                                                    // 8 · mặc định 1, kế toán sửa
       null,                                                 // 9 · công thức bên dưới
       p.soTien || 0,                                        // 10
-      p.ngay ? new Date(p.ngay+'T00:00:00') : null,         // 11 · ngày lập phiếu
+      p.ngay ? (function(){ const [Y,M,Dd]=p.ngay.split('-').map(Number); return new Date(Date.UTC(Y,M-1,Dd)); })() : null,  // 11 · ngày lập phiếu (dùng UTC để Excel không lệch 1 ngày)
       p.hinhThuc==='CK' ? 'CK' : 'TM'                       // 12
     ]);
     // Đơn giá tự tính = Số tiền ÷ Số lượng, kế toán sửa Số lượng là Đơn giá đổi theo
@@ -2535,10 +2559,34 @@ function cnCoTrich(p, loai){
 }
 
 /* --- Nghĩa vụ phát sinh của 1 phiếu --- */
+/* V1.9.9 — mỗi phiếu chi có 3 trạng thái khấu trừ TNCN:
+     'net'   — số chi là số NGƯỜI NHẬN THỰC NHẬN (đã trừ thuế) -> thuế = chi ÷ 9   [mặc định]
+     'gross' — số chi là số GỘP chưa trừ thuế (quên khấu trừ)  -> thuế = chi × 10%
+     'off'   — không khấu trừ (trả cho tổ chức có hoá đơn)     -> thuế = 0          */
+function cnTNCNMode(p){
+  if(p.tncnMode) return p.tncnMode;
+  if(p.khongTNCN === true) return 'off';        // tương thích bản V1.9.8
+  const dm = danhMucList.find(x=>x.maKhoan===p.maKhoan);
+  const thuoc = (dm && dm.nopTNCN!==undefined) ? !!dm.nopTNCN : TNCN_MA_MAC_DINH.includes(p.maKhoan);
+  return thuoc ? 'net' : 'off';
+}
+function cnCoTNCN(p){ return cnTNCNMode(p) !== 'off'; }
+/* Thuế TNCN của một phiếu chi */
+function cnTinhTNCN(soTien, mode){
+  if(mode === 'off') return 0;
+  if(mode === 'gross') return soTien * ((+tyLeConfig.tncnTyLe || 10)/100);
+  return soTien / (+tyLeConfig.tncnChia || 9);
+}
 function cnPhatSinh(p){
   const z = {vn290:0, dntu:0, tncn:0, quyPT:0};
-  if(p.loai!=='thu') return z;
-  if(p.maKhoan===CN_MA.thuTNCN){ z.tncn = p.soTien; return z; }
+  /* Nghĩa vụ TNCN sinh ra từ PHIẾU CHI có khấu trừ 10%, không phải từ phiếu thu */
+  if(p.loai==='chi'){
+    // V1.9.7 — chỉ áp dụng từ mốc đã cấu hình. Quý 1 & quý 2/2026 đã quyết toán xong với cơ quan thuế.
+    if(cnCoTNCN(p) && (!tyLeConfig.tncnTuNgay || p.ngay >= tyLeConfig.tncnTuNgay))
+      z.tncn = cnTinhTNCN(p.soTien, cnTNCNMode(p));
+    return z;
+  }
+  if(p.maKhoan===CN_MA.thuTNCN) return z;   // tiền người nhận trả lại — chỉ là dòng tiền, không phải nghĩa vụ mới
   if(cnLaNoiBo(p)) return z;
   const nhom = cnNhomCuaPhieu(p);
   const thucNhan = cnThucNhan(p);
@@ -2553,7 +2601,7 @@ function cnDaTra(p){
   if(p.loai!=='chi') return z;
   if(p.maKhoan===CN_MA.traVN290) z.vn290 = p.soTien;
   else if(p.maKhoan===CN_MA.traDNTU) z.dntu = p.soTien;
-  else if(p.maKhoan===CN_MA.traTNCN) z.tncn = p.soTien;
+  else if(p.maKhoan===CN_MA.traTNCN) z.tncn = p.soTien;   // nộp cho cơ quan thuế
   else if(p.maKhoan===CN_MA.traQuyPT) z.quyPT = p.soTien;
   return z;
 }
@@ -2721,6 +2769,88 @@ function congNoDuBao(){
     tongCuoi: cuoi.vn290+cuoi.dntu+cuoi.quyPT+cuoi.tncn
   };
 }
+/* ===== V1.9.6 — khối Thuế TNCN giữ hộ ===== */
+function renderKhoiTNCN(){
+  const den = cnMoc();
+  const tu = tyLeConfig.tncnTuNgay || '';
+  const chia = +tyLeConfig.tncnChia || 9;
+  const n = v => formatNumber(Math.round(v));
+  // Mọi phiếu chi thuộc nhóm có thể khấu trừ, kể cả phiếu đã tắt — để anh bật lại được
+  const ungVien = phieuList.filter(p=> p.loai==='chi' && (!den||p.ngay<=den) && (!tu||p.ngay>=tu)
+      && (p.coTNCN===true || p.khongTNCN===true
+          || (danhMucList.find(d=>d.maKhoan===p.maKhoan)||{}).nopTNCN
+          || TNCN_MA_MAC_DINH.includes(p.maKhoan)))
+    .sort((a,b)=> (a.ngay||'').localeCompare(b.ngay||''));
+  let nghiaVu=0, tongChi=0, soTat=0, soGop=0;
+  ungVien.forEach(p=>{ const md=cnTNCNMode(p);
+    if(md==='off'){ soTat++; return; }
+    if(md==='gross') soGop++;
+    nghiaVu += cnTinhTNCN(p.soTien, md); tongChi += p.soTien; });
+  const daNop = phieuList.filter(p=> p.loai==='chi' && p.maKhoan===CN_MA.traTNCN && (!den||p.ngay<=den) && (!tu||p.ngay>=tu))
+                         .reduce((s,p)=>s+p.soTien,0);
+  const daThuLai = phieuList.filter(p=> p.loai==='thu' && p.maKhoan===CN_MA.thuTNCN && (!den||p.ngay<=den) && (!tu||p.ngay>=tu))
+                            .reduce((s,p)=>s+p.soTien,0);
+  return `<div class="card" style="border:2px solid var(--warn);">
+    <div class="card-title" style="color:#9a6a00;">🧾 Thuế TNCN khấu trừ giữ hộ</div>
+    <div class="hint">Số chi ghi trong sổ là <b>số người nhận thực nhận</b> (đã trừ thuế), nên thuế = <b>thực chi ÷ ${chia}</b>.
+      Chỉ tính từ <b>${tu?fmtDateVN(tu):'đầu kỳ'}</b> — quý 1 và quý 2/2026 đã quyết toán xong với cơ quan thuế.</div>
+    <div class="row" style="gap:8px;align-items:center;margin:8px 0;flex-wrap:wrap;">
+      <span class="small muted">Áp dụng từ ngày</span>
+      <input type="date" style="max-width:170px;margin:0;" id="cn_tncnTuNgay" value="${tu}">
+      <span class="small muted">Thực nhận ÷</span>
+      <input type="number" step="0.01" style="max-width:80px;margin:0;" id="cn_tncnChia" value="${chia}">
+      <span class="small muted">Gộp × (%)</span>
+      <input type="number" step="0.1" style="max-width:80px;margin:0;" id="cn_tncnTyLe" value="${+tyLeConfig.tncnTyLe||10}">
+      <button class="btn btn-outline btn-sm" onclick="luuCauHinhTNCN()">💾 Lưu</button>
+    </div>
+    <div class="grid" style="grid-template-columns:repeat(4,1fr);margin:10px 0;">
+      <div class="kpi"><div class="lbl">Nghĩa vụ phải nộp</div><div class="num" style="color:var(--warn);">${n(nghiaVu)}</div></div>
+      <div class="kpi"><div class="lbl">Người nhận đã trả lại</div><div class="num" style="color:var(--ok);">${n(daThuLai)}</div></div>
+      <div class="kpi"><div class="lbl">Đã nộp cơ quan thuế</div><div class="num" style="color:var(--ok);">${n(daNop)}</div></div>
+      <div class="kpi" style="background:#fffaef;border-color:var(--warn);"><div class="lbl">CÒN PHẢI NỘP</div>
+        <div class="num" style="color:var(--danger);">${n(nghiaVu-daNop)}</div></div>
+    </div>
+    <div class="hint" style="margin-bottom:6px;">Bấm nút cột cuối để đổi cách tính:
+      <b style="color:var(--ok);">Thực nhận</b> (chi đã trừ thuế → ÷${chia}) →
+      <b style="color:#2b6cb0;">Gộp</b> (quên trừ thuế, chi cả gộp → ×${+tyLeConfig.tncnTyLe||10}%) →
+      <b style="color:var(--muted);">Tắt</b> (trả cho tổ chức có hoá đơn).
+      ${soTat?`Đang tắt ${soTat} phiếu. `:''}${soGop?`Có ${soGop} phiếu tính theo Gộp.`:''}</div>
+    <div class="table-scroll" style="max-height:440px;overflow:auto;">
+    <table class="grid-table"><thead><tr>
+      <th>Ngày</th><th>Mã khoản</th><th>Diễn giải</th>
+      <th style="text-align:right;">Số chi</th><th style="text-align:right;">Thuế TNCN</th><th style="text-align:center;">Cách tính</th></tr></thead><tbody>
+    ${ungVien.map(p=>{ const md = cnTNCNMode(p);
+      const nhan = {net:'✓ Thực nhận', gross:'≡ Gộp', off:'✕ Tắt'}[md];
+      const mau  = {net:'var(--ok)', gross:'#2b6cb0', off:'var(--muted)'}[md];
+      return `<tr style="${md==='off'?'opacity:.5;background:#f7f7f7;':''}">
+        <td>${fmtDateVN(p.ngay)}</td>
+        <td class="small"><b>${escapeHtml(p.maKhoan||'')}</b></td>
+        <td class="small">${escapeHtml((p.dienGiai||'').slice(0,54))}</td>
+        <td style="text-align:right;">${n(p.soTien)}</td>
+        <td style="text-align:right;color:var(--warn);font-weight:700;">${md==='off'? '<span style="color:#c7ccd4;">—</span>' : n(cnTinhTNCN(p.soTien, md))}</td>
+        <td style="text-align:center;"><button class="btn btn-outline btn-sm" style="padding:3px 10px;color:${mau};border-color:${mau};" onclick="toggleTNCNPhieu('${p.id}')">${nhan}</button></td>
+      </tr>`; }).join('') || '<tr><td colspan="6" class="muted">Chưa có phiếu chi nào thuộc diện khấu trừ.</td></tr>'}
+    <tr style="background:#fffaef;font-weight:800;">
+      <td colspan="3">CỘNG (chỉ phiếu đang bật)</td>
+      <td style="text-align:right;">${n(tongChi)}</td>
+      <td style="text-align:right;color:#9a6a00;font-size:15px;">${n(nghiaVu)}</td><td></td></tr>
+    </tbody></table></div>
+  </div>`;
+}
+
+/* Xoay vòng 3 trạng thái: Thực nhận -> Gộp -> Tắt -> Thực nhận */
+async function toggleTNCNPhieu(id){
+  const p = phieuList.find(x=>x.id===id);
+  if(!p) return;
+  const tiep = {net:'gross', gross:'off', off:'net'}[cnTNCNMode(p)] || 'net';
+  const nhan = {net:'Thực nhận (÷'+(+tyLeConfig.tncnChia||9)+')', gross:'Gộp (×'+(+tyLeConfig.tncnTyLe||10)+'%)', off:'Không khấu trừ'}[tiep];
+  try{
+    await db.collection('flic_phieu').doc(id).update({tncnMode: tiep, khongTNCN: tiep==='off'});
+    logActivity(`Đổi cách tính TNCN phiếu ${p.maKhoan} ${fmtDateVN(p.ngay)} ${formatNumber(p.soTien)}đ → ${nhan}`);
+    showToast('Đã đổi: '+nhan);
+  }catch(e){ fsErr(e); }
+}
+
 function renderDuBaoCongNo(){
   const f = congNoDuBao();
   const n = v => formatNumber(Math.round(v));
@@ -2772,6 +2902,7 @@ function renderCongNoTab(){
       <div class="hint">VN290 · DNTU · Quỹ PT · Thuế TNCN được tính TỰ ĐỘNG từ phiếu Thu–Chi. Các khoản nợ khác nhập tay ở cuối trang.</div>
       ${cnThanhLocNgay()}
     </div>
+    ${renderKhoiTNCN()}
     ${renderDuBaoCongNo()}
     ${(()=>{ const sh = congNoSapDenHan(7); if(!sh.length) return '';
       return `<div class="card" style="border:2px solid var(--warn);">
@@ -3263,6 +3394,15 @@ function renderSoQuyPhatTrien(){
         </div>`
         : '<div class="hint" style="color:var(--ok);">✓ Đã nạp quỹ đủ mọi tháng có phát sinh.</div>'}
     </div>
+    ${(()=>{ const daNap = {};
+      phieuList.forEach(p=>{ if(p.loai==='chi' && (p.maKhoan===QUY_MA.nap||p.maKhoan===QUY_MA.chiBGD||p.maKhoan===QUY_MA.chiDPRR)) daNap[(p.ngay||'').slice(0,7)]=true; });
+      const ks = Object.keys(daNap).sort();
+      return ks.length ? `<div class="card" style="margin:10px 0;border:1px solid var(--border);background:#fafbfc;">
+        <div style="font-weight:700;color:var(--muted);">↩️ Huỷ lệnh trích quỹ của một tháng</div>
+        <div class="hint" style="margin-bottom:8px;">Xoá hết phiếu nạp quỹ và trích BGĐ của tháng đó, trả về trạng thái chưa trích. Số liệu quay lại y như cũ.</div>
+        <div class="btn-row" style="flex-wrap:wrap;">
+          ${ks.map(k=>`<button class="btn btn-outline btn-sm" onclick="huyNapQuyThang('${k}', this)">↩️ Huỷ ${tenT(k)}</button>`).join('')}
+        </div></div>`:''; })()}
     ${(()=>{ const ds = quyPTThangChuaTrichBGD();
       return `<div class="card" style="margin:10px 0;border:2px solid #6b46c1;background:#f8f5fd;">
       <div style="font-weight:800;color:#6b46c1;">BƯỚC 2 · Trích 7,5% cho Ban giám đốc</div>
@@ -3293,6 +3433,31 @@ function renderSoQuyPhatTrien(){
       </tbody></table></div>
     ${q.soDu<0 ? '<div class="hint" style="color:var(--danger);margin-top:8px;">⚠ Số dư quỹ đang ÂM — đã trích cho BGĐ nhiều hơn số đã nạp.</div>':''}
   </div>`;
+}
+
+/* V1.9.6 — đánh dấu "Nộp TNCN 10%" cho các mã theo quy ước */
+async function luuCauHinhTNCN(){
+  const tu = (document.getElementById('cn_tncnTuNgay')||{value:''}).value || '';
+  const chia = parseFloat((document.getElementById('cn_tncnChia')||{value:'9'}).value) || 9;
+  const tl = parseFloat((document.getElementById('cn_tncnTyLe')||{value:'10'}).value) || 10;
+  try{
+    await db.collection('flic_settings').doc('tyLeTrichNop').set(
+      Object.assign({}, tyLeConfig, {tncnTuNgay: tu, tncnChia: chia, tncnTyLe: tl}));
+    logActivity(`Cập nhật cấu hình TNCN: thực chi ÷ ${chia} từ ${tu||'đầu kỳ'}`);
+    showToast('Đã lưu cấu hình thuế TNCN');
+  }catch(e){ fsErr(e); }
+}
+
+async function danhDauMaTNCN(){
+  const ds = danhMucList.filter(d=> TNCN_MA_MAC_DINH.includes(d.maKhoan) && !d.nopTNCN);
+  if(!ds.length){ showToast('5 mã đã được đánh dấu đủ'); return; }
+  try{
+    for(const d of ds){
+      await db.collection('flic_danhmuc').doc(d.id).update({nopTNCN:true});
+      logActivity(`Đánh dấu khấu trừ TNCN 10%: ${d.maKhoan}`);
+    }
+    showToast(`Đã đánh dấu ${ds.length} mã khoản`);
+  }catch(e){ fsErr(e); }
 }
 
 async function taoMaKhoanQuy(){
@@ -3391,6 +3556,23 @@ async function chotXacNhanQuy(){
   finally{ btn.disabled = false; btn.textContent = '✓ Xác nhận tạo phiếu'; }
 }
 
+/* V1.9.5 — huỷ toàn bộ phiếu quỹ của một tháng (nạp + trích BGĐ + dùng dự phòng) */
+async function huyNapQuyThang(thang, btn){
+  const ds = phieuList.filter(p=> p.loai==='chi' && (p.ngay||'').slice(0,7)===thang
+    && [QUY_MA.nap, QUY_MA.chiBGD, QUY_MA.chiDPRR].includes(p.maKhoan));
+  if(!ds.length){ showToast('Tháng này không có phiếu quỹ nào'); return; }
+  const tong = ds.reduce((s,p)=>s+(p.soTien||0),0);
+  if(!requestConfirm('huyQuy_'+thang, btn, `↩️ Huỷ ${ds.length} phiếu`)){
+    showToast(`Sẽ xoá ${ds.length} phiếu (${formatNumber(tong)}đ) — bấm lần nữa để xác nhận`);
+    return;
+  }
+  try{
+    for(const p of ds){ await db.collection('flic_phieu').doc(p.id).delete(); }
+    logActivity(`Huỷ lệnh trích Quỹ PT tháng ${thang}: xoá ${ds.length} phiếu`);
+    showToast(`Đã huỷ ${ds.length} phiếu quỹ tháng ${thang}`);
+  }catch(e){ fsErr(e); }
+}
+
 async function exportQuyPTExcel(){
   if(typeof ExcelJS==='undefined'){ showToast('Đang tải thư viện Excel, thử lại sau'); return; }
   const q = quyPTCompute();
@@ -3469,7 +3651,7 @@ function renderCanDoiTienTab(){
           <tr><td colspan="2" style="background:#fafbfc;font-weight:700;padding-top:10px;">TRỪ — Nợ phải trả (tự động từ phiếu)</td></tr>
           ${dong('Nợ Công ty VN290', -d.cn.vn290, 'var(--danger)', 'Lệ phí thi Cambridge thu hộ, chưa chuyển trả')}
           ${dong('Nợ DNTU', -d.cn.dntu, 'var(--danger)', 'Trích nộp doanh thu chưa nộp')}
-          ${dong('Thuế TNCN giữ hộ người lao động', -d.cn.tncn, 'var(--warn)', 'Đã khấu trừ nhưng chưa nộp cơ quan thuế')}
+          ${dong('Thuế TNCN khấu trừ giữ hộ', -d.cn.tncn, 'var(--warn)', `Thực chi ÷ ${+tyLeConfig.tncnChia||9} trên các khoản lương GV, trợ giảng, HĐDV, hội đồng thi, lương P3 BGĐ — chưa nộp cơ quan thuế`)}
           ${dong('Quỹ Phát triển Trung tâm 15%', -d.quy.tongConLai, '#0d7490', 'Tổng quỹ còn lại: chưa ghi sổ '+n(d.quy.chuaGhiSo)+' + đã ghi sổ '+n(d.quy.nap)+' − đã trích BGĐ '+n(d.quy.bgd))}
           <tr><td colspan="2" style="background:#fafbfc;font-weight:700;padding-top:10px;">TRỪ — Nợ phải trả (nhập tay)</td></tr>
           ${Object.keys(d.tc.theoNhom).filter(k=>d.tc.theoNhom[k].phaiTra>0).map(k=>dong(nhomLbl(k), -d.tc.theoNhom[k].phaiTra, 'var(--danger)')).join('')
