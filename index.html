@@ -200,7 +200,7 @@
   <div class="app-header">
     <div>
       <h1>💰 Sổ Thu Chi FLIC</h1>
-      <div class="ver">Phiên bản: V2.0.2</div>
+      <div class="ver">Phiên bản: V2.0.4</div>
     </div>
     <div class="row" style="gap:8px;">
       <div class="role-chip" id="roleChip" onclick="doLogout()">—</div>
@@ -1743,13 +1743,13 @@ async function exportPhieuThuKeToan(){
 
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet('Phieu thu');
-  ws.columns = [{width:16},{width:30},{width:30},{width:34},{width:24},{width:24},{width:46},{width:10},{width:14},{width:14},{width:14},{width:11}];
-  excelChenLogo(wb, ws, 12);
+  ws.columns = [{width:16},{width:30},{width:30},{width:34},{width:24},{width:24},{width:46},{width:10},{width:14},{width:14},{width:14},{width:11},{width:18}];
+  excelChenLogo(wb, ws, 13);
   ws.addRow(['BẢNG KÊ PHIẾU THU — DÙNG ĐỂ XUẤT HOÁ ĐƠN']).font={bold:true,size:14};
   ws.addRow([nhan+`  ·  ${list.length} phiếu`]).font={italic:true,size:11};
   ws.addRow([]);
   const HDR=['SỐ PHIẾU THU GIẤY','HỌ VÀ TÊN','SỐ HÓA ĐƠN','ĐỊA CHỈ','CCCD & MST','MÃ DANH MỤC',
-             'DIỄN GIẢI','SỐ LƯỢNG','ĐƠN GIÁ','SỐ TIỀN','NGÀY HÓA ĐƠN','HÌNH THỨC'];
+             'DIỄN GIẢI','SỐ LƯỢNG','ĐƠN GIÁ','SỐ TIỀN','NGÀY HÓA ĐƠN','HÌNH THỨC','NGÂN HÀNG'];
   const hr = ws.addRow(HDR);
   hr.height = 34;
   hr.eachCell(c=>{
@@ -1764,7 +1764,7 @@ async function exportPhieuThuKeToan(){
     const r = ws.addRow([
       '',                                                   // 1 · kế toán tự nhập
       p.nguoiNop || p.hocVien || '',                        // 2
-      p.soHoaDon || 'KHÔNG XUẤT HÓA ĐƠN',                   // 3
+      p.soHoaDon || '',                                     // 3 · để trống, kế toán tự điền
       p.diaChi || '',                                       // 4
       dinhDanh,                                             // 5
       p.maKhoan || '',                                      // 6 · dùng mã khoản của app
@@ -1773,30 +1773,25 @@ async function exportPhieuThuKeToan(){
       null,                                                 // 9 · công thức bên dưới
       p.soTien || 0,                                        // 10
       p.ngay ? (function(){ const [Y,M,Dd]=p.ngay.split('-').map(Number); return new Date(Date.UTC(Y,M-1,Dd)); })() : null,  // 11 · ngày lập phiếu (dùng UTC để Excel không lệch 1 ngày)
-      p.hinhThuc==='CK' ? 'CK' : 'TM'                       // 12
+      p.hinhThuc==='CK' ? 'CK' : 'TM',                      // 12
+      p.hinhThuc==='CK' ? ((p.nganHang||'').trim() || '-') : '-'   // 13 · tiền mặt thì để dấu gạch
     ]);
     // Đơn giá tự tính = Số tiền ÷ Số lượng, kế toán sửa Số lượng là Đơn giá đổi theo
     r.getCell(9).value = { formula: `IF(H${r.number}=0,"",J${r.number}/H${r.number})` };
     r.height = 30;
     r.eachCell({includeEmpty:true},(c,i)=>{
       c.border={top:{style:'thin'},bottom:{style:'thin'},left:{style:'thin'},right:{style:'thin'}};
-      c.alignment={vertical:'middle', wrapText:(i===4||i===7), horizontal:(i===1||i===8||i===11||i===12)?'center':(i>=9&&i<=10?'right':'left')};
+      c.alignment={vertical:'middle', wrapText:(i===4||i===7), horizontal:(i===1||i===8||i===11||i===12||i===13)?'center':(i>=9&&i<=10?'right':'left')};
       c.font={size:11};
       if(i===9||i===10) c.numFmt='#,##0';
       if(i===11) c.numFmt='dd/mm/yyyy';
     });
-    if(!p.soHoaDon){
-      const c=r.getCell(3);
-      c.font={size:11,bold:true,color:{argb:'FFFFFFFF'}};
-      c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF595959'}};
-      c.alignment={horizontal:'center',vertical:'middle'};
-    }
   });
-  const tong = ws.addRow(['','','','','','','TỔNG CỘNG','','', list.reduce((s,p)=>s+(p.soTien||0),0),'','']);
+  const tong = ws.addRow(['','','','','','','TỔNG CỘNG','','', list.reduce((s,p)=>s+(p.soTien||0),0),'','','']);
   tong.getCell(7).font={bold:true,size:12};
   tong.getCell(10).font={bold:true,size:12}; tong.getCell(10).numFmt='#,##0';
   tong.getCell(10).alignment={horizontal:'right'};
-  ws.autoFilter = { from:{row:hr.number,column:1}, to:{row:hr.number,column:12} };
+  ws.autoFilter = { from:{row:hr.number,column:1}, to:{row:hr.number,column:13} };
   ws.views=[{state:'frozen', ySplit:hr.number}];
 
   const buf = await wb.xlsx.writeBuffer();
