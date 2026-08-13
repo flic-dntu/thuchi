@@ -200,7 +200,7 @@
   <div class="app-header">
     <div>
       <h1>💰 Sổ Thu Chi FLIC</h1>
-      <div class="ver">Phiên bản: V2.0.5</div>
+      <div class="ver">Phiên bản: V2.1.0</div>
     </div>
     <div class="row" style="gap:8px;">
       <div class="role-chip" id="roleChip" onclick="doLogout()">—</div>
@@ -874,6 +874,19 @@ function dienGiaiSuggestions(loai){
 }
 let phieuSelectedDanhMuc = {thu:null, chi:null};
 let phieuRecentFilter = {thu:'tatca', chi:'tatca'};
+let phieuTimKiem = {thu:'', chi:''};   // V2.1.0 — từ khoá tìm kiếm phiếu
+/* V2.1.0 — gõ tới đâu lọc tới đó, chỉ vẽ lại danh sách nên không mất con trỏ */
+function setPhieuTimKiem(loai, val){
+  phieuTimKiem[loai] = val || '';
+  renderPhieuRecentList(loai);
+}
+function xoaTimKiemPhieu(loai){
+  phieuTimKiem[loai] = '';
+  const el = document.getElementById('phieuTimKiem_'+loai);
+  if(el) el.value = '';
+  renderPhieuRecentList(loai);
+}
+
 function setPhieuRecentFilter(loai, val){
   phieuRecentFilter[loai] = val;
   // V1.7.8 — tô lại màu nút đang chọn (trước đây chỉ vẽ lại danh sách nên nút không đổi màu)
@@ -976,6 +989,15 @@ function renderPhieuForm(loai){
         <button data-f="homqua" class="${phieuRecentFilter[loai]==='homqua'?'active':''}" onclick="setPhieuRecentFilter('${loai}','homqua')">Hôm qua</button>
         <button data-f="homnay" class="${phieuRecentFilter[loai]==='homnay'?'active':''}" onclick="setPhieuRecentFilter('${loai}','homnay')">Hôm nay</button>
         <button data-f="tatca" class="${phieuRecentFilter[loai]==='tatca'?'active':''}" onclick="setPhieuRecentFilter('${loai}','tatca')">Tất cả</button>
+      </div>
+      <div class="field" style="margin-top:8px;">
+        <label>🔍 Tìm kiếm phiếu (gõ không dấu cũng được)</label>
+        <div style="display:flex;gap:7px;align-items:center;">
+          <input type="text" id="phieuTimKiem_${loai}" placeholder="Tên phụ huynh / học viên · mã khoản · diễn giải · số phiếu · CCCD · MST · số tiền"
+                 value="${escapeHtml(phieuTimKiem[loai]||'')}" oninput="setPhieuTimKiem('${loai}', this.value)" style="margin:0;">
+          <button class="btn btn-outline btn-sm" style="padding:9px 13px;" onclick="xoaTimKiemPhieu('${loai}')">✕</button>
+        </div>
+        <div class="hint" style="margin-top:4px;">Khi có từ khoá, app tìm trong <b>TẤT CẢ</b> phiếu — không phụ thuộc bộ lọc ngày ở trên.</div>
       </div>
       <div id="phieuRecentTong_${loai}" style="margin-top:8px;"></div>
       ${loai==='thu' ? `<div class="btn-row" style="margin-top:8px;">
@@ -1239,7 +1261,19 @@ function renderPhieuRecentList(loai){
     if(d !== 0) return d;
     return String(b.id||'').localeCompare(String(a.id||''));
   });
-  if(filter==='homkia') list = list.filter(p=>p.ngay===isoOffsetDays(-2));
+  /* V2.1.0 — có từ khoá thì tìm trong TOÀN BỘ phiếu, bỏ qua bộ lọc ngày.
+     Không có từ khoá thì giữ nguyên hành vi cũ. */
+  const tk = searchNorm(phieuTimKiem[loai]||'').trim();
+  if(tk){
+    const tuKhoa = tk.split(/\s+/).filter(Boolean);
+    list = list.filter(p=>{
+      const kho = searchNorm([p.hocVien, p.nguoiNop, p.dienGiai, p.maKhoan, p.tenKhoan,
+        p.soPhieu, p.soHoaDon, p.diaChi, p.cccd, p.mst, p.ghiChu, p.nganHang,
+        String(p.soTien||''), formatNumber(p.soTien||0), fmtDateVN(p.ngay)].filter(Boolean).join(' '));
+      return tuKhoa.every(t=> kho.includes(t));
+    }).slice(0,200);
+  }
+  else if(filter==='homkia') list = list.filter(p=>p.ngay===isoOffsetDays(-2));
   else if(filter==='homqua') list = list.filter(p=>p.ngay===isoOffsetDays(-1));
   else if(filter==='homnay') list = list.filter(p=>p.ngay===isoOffsetDays(0));
   else list = list.slice(0,30); // Tất cả — vẫn giới hạn 30 dòng gần nhất để không quá nặng
@@ -1253,8 +1287,9 @@ function renderPhieuRecentList(loai){
     const noiBo = list.filter(laLoaiTru);
     const tong = thuc.reduce((s,p)=>s+(p.soTien||0),0);
     const tongNB = noiBo.reduce((s,p)=>s+(p.soTien||0),0);
-    const nhan = {homkia:'Hôm kia '+fmtDateVN(isoOffsetDays(-2)), homqua:'Hôm qua '+fmtDateVN(isoOffsetDays(-1)),
-                  homnay:'Hôm nay '+fmtDateVN(isoOffsetDays(0))}[filter] || 'Tất cả (30 phiếu gần nhất)';
+    const nhan = tk ? ('🔍 Kết quả tìm: "'+ (phieuTimKiem[loai]||'') +'"')
+      : ({homkia:'Hôm kia '+fmtDateVN(isoOffsetDays(-2)), homqua:'Hôm qua '+fmtDateVN(isoOffsetDays(-1)),
+          homnay:'Hôm nay '+fmtDateVN(isoOffsetDays(0))}[filter] || 'Tất cả (30 phiếu gần nhất)');
     const mau = loai==='thu' ? 'var(--ok)' : 'var(--danger)';
     const nen = loai==='thu' ? '#eaf6ef' : '#fdeeee';
     elTong.innerHTML = list.length
@@ -2083,7 +2118,7 @@ function canDoiCompute(){
   const noiBoChi = inRange.filter(p=>p.loai==='chi' && isNoiBo(p)).reduce((s,p)=>s+p.soTien,0);
   const groups = {DNTU:{ten:'Chi phí Đào Tạo (DNTU)', doanhSo:0, hoaHong:0, flic:0, tyLeGiu:80},
                   VN290:{ten:'Hợp đồng VN290', doanhSo:0, hoaHong:0, flic:0, tyLeGiu:9.5},
-                  FLIC100:{ten:'Thu phí tổ chức Hội đồng thi (25%)', doanhSo:0, hoaHong:0, flic:0, tyLeGiu:100},
+                  FLIC100:{ten:'Khoản FLIC giữ 100% (Summer Camp · Hội đồng thi · Sách · Thu khác)', doanhSo:0, hoaHong:0, flic:0, tyLeGiu:100},
                   KHAC:{ten:'Khác', doanhSo:0, hoaHong:0, flic:0, tyLeGiu:null}};
   thuRows.forEach(p=>{
     // V1.7.0 — ƯU TIÊN tỷ lệ trong Danh Mục HIỆN HÀNH, chỉ dùng tỷ lệ đóng dấu trên phiếu khi mã khoản
@@ -2092,9 +2127,10 @@ function canDoiCompute(){
     const pct = cnPctCuaPhieu(p, nhom);
     const ps = cnPhatSinh(p);   // V1.7.3 — SỬA LỖI: V1.7.1 quên khai báo dòng này -> tab Báo Cáo đứng
     // V1.7.1 — Trung tâm thực nhận = soTien x pct%. Trên phần đó mới trích DNTU và Quỹ PT.
-    const thucNhan = p.soTien * pct/100;
-    const flicPhan = thucNhan - ps.dntu - ps.quyPT;     // FLIC còn lại sau 2 khoản trích
-    const hoaHongPhan = p.soTien - flicPhan;            // tổng phải nộp: VN290 + DNTU + Quỹ PT
+    /* V2.0.7 — tính từ các số ĐÃ LÀM TRÒN để mỗi hàng luôn cân đúng:
+       Doanh số − Trả VN290 − Trích DNTU − Trích Quỹ PT = Doanh thu FLIC */
+    const flicPhan = p.soTien - ps.vn290 - ps.dntu - ps.quyPT;
+    const hoaHongPhan = ps.vn290 + ps.dntu + ps.quyPT;
     groups[nhom].doanhSo += p.soTien;
     groups[nhom].flic += flicPhan;
     groups[nhom].hoaHong += hoaHongPhan;
@@ -2117,18 +2153,49 @@ function xemChiTietNhomCanDoi(nhomKey){
   const d = window._canDoiLastData;
   if(!d) return;
   const g = d.groups[nhomKey];
-  const inRange = phieuList.filter(p=>{
+  /* V2.1.0 — SỬA LỖI: phải loại phiếu điều chuyển nội bộ / bút toán ghi sổ y hệt canDoiCompute(),
+     nếu không bảng chi tiết sẽ nhiều hơn cột Doanh số ở bảng chính (trước đây thừa hơn 1,8 tỷ). */
+  const rows = phieuList.filter(p=>{
     if(p.loai!=='thu' || p.ngay<d.from || p.ngay>d.to) return false;
-    const dm = danhMucList.find(x=>x.maKhoan===p.maKhoan);
-    const nhom = cnNhomCuaPhieu(p);
-    return nhom === nhomKey;
+    if(cnLaNoiBo(p) || laButToan(p)) return false;
+    return cnNhomCuaPhieu(p) === nhomKey;
+  }).sort((a,b)=> (a.ngay||'').localeCompare(b.ngay||''));
+
+  // Tách theo từng mã khoản để thấy nhóm gồm những khoản gì
+  const theoMa = {};
+  rows.forEach(p=>{
+    if(!theoMa[p.maKhoan]) theoMa[p.maKhoan] = {n:0, tien:0, ten:(danhMucList.find(x=>x.maKhoan===p.maKhoan)||{}).tenKhoan||''};
+    theoMa[p.maKhoan].n++; theoMa[p.maKhoan].tien += p.soTien;
   });
-  document.getElementById('chiTietNhomTitle').textContent = `Chi tiết — ${g.ten}`;
-  const rows = inRange.sort((a,b)=>a.ngay<b.ngay?-1:1);
-  document.getElementById('chiTietNhomBody').innerHTML = rows.length ? `<div class="table-scroll"><table class="grid-table">
-    <thead><tr><th>Ngày</th><th>Mã khoản</th><th>Diễn giải</th><th>Số tiền</th></tr></thead>
-    <tbody>${rows.map(p=>`<tr><td>${fmtDateVN(p.ngay)}</td><td>${escapeHtml(p.maKhoan)}</td><td>${escapeHtml(p.dienGiai||'')}</td><td style="text-align:right;">${formatNumber(p.soTien)}</td></tr>`).join('')}</tbody>
-  </table></div>` : '<div class="empty"><div class="ico">📄</div>Không có phiếu nào trong nhóm này</div>';
+  const dsMa = Object.keys(theoMa).sort((a,b)=> theoMa[b].tien - theoMa[a].tien);
+  const tongCT = rows.reduce((s,p)=> s + (p.soTien||0), 0);
+  const lech = Math.round(tongCT - g.doanhSo);
+
+  document.getElementById('chiTietNhomTitle').textContent = 'Chi tiết — ' + g.ten;
+  document.getElementById('chiTietNhomBody').innerHTML = rows.length ? `
+    ${dsMa.length>1 ? `<div class="card" style="margin:0 0 10px;background:#f7f9fb;">
+      <div class="card-title" style="margin:0 0 6px;font-size:14px;">Nhóm này gồm ${dsMa.length} mã khoản</div>
+      <div class="table-scroll"><table class="grid-table">
+        <thead><tr><th>Mã khoản</th><th>Tên khoản</th><th style="text-align:right;">Số phiếu</th><th style="text-align:right;">Doanh số</th><th style="text-align:right;">Tỷ trọng</th></tr></thead>
+        <tbody>${dsMa.map(ma=>`<tr>
+            <td><b>${escapeHtml(ma)}</b></td>
+            <td class="small">${escapeHtml(theoMa[ma].ten)}</td>
+            <td style="text-align:right;">${theoMa[ma].n}</td>
+            <td style="text-align:right;font-weight:600;">${formatNumber(theoMa[ma].tien)}</td>
+            <td style="text-align:right;color:var(--muted);">${tongCT? (theoMa[ma].tien/tongCT*100).toFixed(1):'0.0'}%</td></tr>`).join('')}
+          <tr style="background:#eef4f0;font-weight:800;"><td colspan="3">CỘNG</td>
+            <td style="text-align:right;">${formatNumber(tongCT)}</td><td></td></tr>
+        </tbody></table></div></div>`:''}
+    <div class="table-scroll"><table class="grid-table">
+      <thead><tr><th>Ngày</th><th>Mã khoản</th><th>Diễn giải</th><th style="text-align:right;">Số tiền</th></tr></thead>
+      <tbody>${rows.map(p=>`<tr><td>${fmtDateVN(p.ngay)}</td><td class="small">${escapeHtml(p.maKhoan)}</td><td class="small">${escapeHtml(p.dienGiai||'')}</td><td style="text-align:right;">${formatNumber(p.soTien)}</td></tr>`).join('')}
+        <tr style="background:#eef4f0;font-weight:800;">
+          <td colspan="3">TỔNG ${rows.length} PHIẾU — phải khớp cột Doanh số ở bảng chính</td>
+          <td style="text-align:right;">${formatNumber(tongCT)}</td></tr>
+      </tbody></table></div>
+    ${lech!==0 ? `<div class="hint" style="color:var(--danger);margin-top:8px;">⚠ Lệch ${formatNumber(lech)}đ so với bảng chính (${formatNumber(g.doanhSo)}) — báo lại để kiểm tra.</div>`
+               : `<div class="hint" style="color:var(--ok);margin-top:8px;">✓ Khớp đúng cột Doanh số ở bảng chính.</div>`}
+  ` : '<div class="empty"><div class="ico">📄</div>Không có phiếu nào trong nhóm này</div>';
   document.getElementById('chiTietNhomModal').classList.remove('hidden');
 }
 function closeChiTietNhom(){ document.getElementById('chiTietNhomModal').classList.add('hidden'); }
@@ -2601,10 +2668,12 @@ function cnPhatSinh(p){
   if(cnLaNoiBo(p)) return z;
   const nhom = cnNhomCuaPhieu(p);
   const thucNhan = cnThucNhan(p);
-  if(nhom==='VN290') z.vn290 = p.soTien - thucNhan;   // phần thu hộ phải trả lại VN290
-  if(cnCoTrich(p,'dntu')) z.dntu = thucNhan * (tyLeConfig.dntu/100);
+  /* V2.0.7 — LÀM TRÒN VỀ ĐỒNG NGAY TỪNG PHIẾU. Nếu để số lẻ rồi mới cộng, bảng chi tiết
+     xuất ra sẽ có phần thập phân và tổng lệch 1-3 đồng so với khi cộng tay từng dòng. */
+  if(nhom==='VN290') z.vn290 = Math.round(p.soTien - thucNhan);   // phần thu hộ phải trả lại VN290
+  if(cnCoTrich(p,'dntu')) z.dntu = Math.round(thucNhan * (tyLeConfig.dntu/100));
   if(cnCoTrich(p,'quyPT') && (!tyLeConfig.quyPTTuNgay || p.ngay >= tyLeConfig.quyPTTuNgay))
-    z.quyPT = thucNhan * (tyLeConfig.quyPT/100);
+    z.quyPT = Math.round(thucNhan * (tyLeConfig.quyPT/100));
   return z;
 }
 function cnDaTra(p){
@@ -3014,7 +3083,14 @@ function renderCongNoTab(){
         <button class="btn btn-outline btn-sm" onclick="xemChiTietCongNo('dntu')">👁️ Chi tiết DNTU</button>
         <button class="btn btn-outline btn-sm" onclick="xemChiTietCongNo('quyPT')">👁️ Chi tiết Quỹ PT</button>
         <button class="btn btn-outline btn-sm" onclick="xemChiTietCongNo('tncn')">👁️ Chi tiết TNCN</button>
-        <button class="btn btn-outline btn-sm" onclick="exportCongNoExcel()">📊 Xuất Excel</button>
+      </div>
+      <div class="hint" style="margin-top:10px;">Xuất Excel <b>chi tiết từng phiếu</b> để báo cáo — mỗi loại một file, tổng cuối bảng khớp đúng số hiển thị ở trên.</div>
+      <div class="btn-row" style="margin-top:6px;flex-wrap:wrap;">
+        <button class="btn btn-primary btn-sm" onclick="exportChiTietCongNo('vn290')">📊 Xuất chi tiết VN290</button>
+        <button class="btn btn-primary btn-sm" onclick="exportChiTietCongNo('dntu')">📊 Xuất chi tiết DNTU</button>
+        <button class="btn btn-primary btn-sm" onclick="exportChiTietCongNo('quyPT')">📊 Xuất chi tiết Quỹ PT</button>
+        <button class="btn btn-primary btn-sm" onclick="exportChiTietCongNo('tncn')">📊 Xuất chi tiết TNCN</button>
+        <button class="btn btn-outline btn-sm" onclick="exportCongNoExcel()">📋 Xuất bảng tổng theo tháng</button>
       </div>
       <div id="cnChiTietWrap" style="margin-top:10px;"></div>
     </div>
@@ -3292,6 +3368,84 @@ async function xoaCongNoTC(id, btn){
     logActivity(`Xoá công nợ: ${x? x.doiTuong : id}`);
     showToast('Đã xoá');
   }catch(e){ fsErr(e); }
+}
+
+/* V2.0.6 — lấy danh sách chi tiết từng phiếu của một loại công nợ.
+   Dùng chung cho nút 👁️ Xem và nút 📊 Xuất Excel để hai nơi luôn ra cùng con số. */
+function chiTietCongNo(loai){
+  const batDau = congNoDauKy.ngayBatDau || '';
+  const den = cnMoc();
+  const items = [];
+  phieuList.filter(p=> (!batDau || p.ngay>=batDau) && (!den || p.ngay<=den)).forEach(p=>{
+    const a = cnPhatSinh(p)[loai], b = cnDaTra(p)[loai];
+    const cach = loai==='tncn' ? ({net:'Thực nhận ÷'+(+tyLeConfig.tncnChia||9), gross:'Gộp ×'+(+tyLeConfig.tncnTyLe||10)+'%', off:'Không khấu trừ'}[cnTNCNMode(p)]||'') : '';
+    if(a>0.5) items.push({ngay:p.ngay, soPhieu:p.soPhieu||p.soHoaDon||'', ma:p.maKhoan, dg:p.dienGiai,
+                          goc:p.soTien, ps:a, tra:0, cach});
+    if(b>0.5) items.push({ngay:p.ngay, soPhieu:p.soPhieu||p.soHoaDon||'', ma:p.maKhoan, dg:p.dienGiai,
+                          goc:p.soTien, ps:0, tra:b, cach:'Thanh toán'});
+  });
+  items.sort((x,y)=> (x.ngay||'').localeCompare(y.ngay||'') || (x.tra-y.tra));
+  const dauKy = ({vn290:+congNoDauKy.vn290||0, dntu:+congNoDauKy.dntu||0,
+                  tncn:+congNoDauKy.tncn||0, quyPT:+congNoDauKy.quyPT||0})[loai] || 0;
+  let luy = dauKy;
+  items.forEach(it=>{ luy += it.ps - it.tra; it.luy = luy; });
+  return {items, dauKy, conNo: luy,
+          tongPS: items.reduce((s,x)=>s+x.ps,0), tongTra: items.reduce((s,x)=>s+x.tra,0)};
+}
+
+const CN_TEN = {vn290:'Công ty VN290', dntu:'DNTU', quyPT:'Quỹ Phát triển 15%', tncn:'Thuế TNCN'};
+
+/* Xuất Excel chi tiết MỘT loại công nợ — dùng để báo cáo cho DNTU */
+async function exportChiTietCongNo(loai){
+  if(typeof ExcelJS==='undefined'){ showToast('Đang tải thư viện Excel, thử lại sau'); return; }
+  const d = chiTietCongNo(loai);
+  if(!d.items.length){ showToast('Không có dữ liệu trong kỳ đang chọn'); return; }
+  const ten = CN_TEN[loai] || loai;
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('Chi tiet '+loai);
+  const coCach = loai==='tncn';
+  ws.columns = [{width:12},{width:24},{width:26},{width:52},{width:16},{width:16},{width:16},{width:18}]
+    .concat(coCach?[{width:18}]:[]);
+  excelChenLogo(wb, ws, coCach?9:8);
+  ws.addRow(['SỔ CHI TIẾT CÔNG NỢ — '+ten.toUpperCase()]).font={bold:true,size:14};
+  ws.addRow([cnAsOf? 'Tính đến ngày '+fmtDateVN(cnAsOf) : 'Toàn bộ dữ liệu đã nhập']).font={italic:true,size:11};
+  ws.addRow(['Đơn vị tính: Đồng Việt Nam']).font={italic:true,size:10};
+  ws.addRow([]);
+  const HDR=['NGÀY','SỐ PHIẾU','MÃ KHOẢN','DIỄN GIẢI','SỐ TIỀN PHIẾU','PHÁT SINH TĂNG','ĐÃ THANH TOÁN','LUỸ KẾ CÒN NỢ']
+    .concat(coCach?['CÁCH TÍNH']:[]);
+  const hr = ws.addRow(HDR); hr.height=32;
+  hr.eachCell(c=>{ c.font={bold:true,size:11}; c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFD9E1F2'}};
+    c.alignment={horizontal:'center',vertical:'middle',wrapText:true};
+    c.border={top:{style:'thin'},bottom:{style:'thin'},left:{style:'thin'},right:{style:'thin'}}; });
+  const vien = r => r.eachCell({includeEmpty:true},(c,i)=>{
+    c.border={top:{style:'thin'},bottom:{style:'thin'},left:{style:'thin'},right:{style:'thin'}};
+    c.font=c.font&&c.font.bold?c.font:{size:11};
+    if(i>=5&&i<=8) c.numFmt='#,##0';
+    c.alignment={vertical:'middle', wrapText:(i===4), horizontal:(i===1||i===9)?'center':(i>=5?'right':'left')};
+  });
+  if(d.dauKy){
+    const r0 = ws.addRow(['','','','SỐ DƯ ĐẦU KỲ','','','',d.dauKy].concat(coCach?['']:[]));
+    r0.font={bold:true}; vien(r0);
+  }
+  d.items.forEach(it=>{
+    const r = ws.addRow([
+      it.ngay? (function(){const[Y,M,D]=it.ngay.split('-').map(Number);return new Date(Date.UTC(Y,M-1,D));})() : null,
+      it.soPhieu, it.ma, it.dg, it.goc, it.ps||null, it.tra||null, it.luy
+    ].concat(coCach?[it.cach]:[]));
+    vien(r); r.getCell(1).numFmt='dd/mm/yyyy';
+  });
+  const rt = ws.addRow(['','','','CỘNG PHÁT SINH TRONG KỲ','',d.tongPS,d.tongTra,d.conNo].concat(coCach?['']:[]));
+  rt.font={bold:true,size:12}; vien(rt);
+  rt.eachCell(c=>{ c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFEEF4F0'}}; });
+  ws.views=[{state:'frozen', ySplit:hr.number}];
+  ws.autoFilter={from:{row:hr.number,column:1}, to:{row:hr.number,column:HDR.length}};
+  const buf = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  const url = URL.createObjectURL(blob); const a=document.createElement('a');
+  a.href=url; a.download=`Chi-tiet-cong-no-${loai}-${cnAsOf||cnToday()}.xlsx`;
+  document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+  logActivity(`Xuất Excel chi tiết công nợ ${ten} (${d.items.length} dòng, còn nợ ${formatNumber(Math.round(d.conNo))}đ)`);
+  showToast(`Đã xuất ${d.items.length} dòng`);
 }
 
 function xemChiTietCongNo(loai){
