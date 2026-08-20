@@ -200,7 +200,7 @@
   <div class="app-header">
     <div>
       <h1>💰 Sổ Thu Chi FLIC</h1>
-      <div class="ver">Phiên bản: V2.3.0</div>
+      <div class="ver">Phiên bản: V2.3.1</div>
     </div>
     <div class="row" style="gap:8px;">
       <div class="role-chip" id="roleChip" onclick="doLogout()">—</div>
@@ -737,17 +737,20 @@ function openEditDanhMuc(id){
         </select>
       </div>
       <div class="field"><label>% Trung tâm thực nhận</label><input type="number" step="0.000001" id="dmThucThuPercent" value="${d.thucThuPercent!=null?d.thucThuPercent:100}"></div>
-      <div class="field" style="display:flex;gap:16px;align-items:center;margin-top:6px;">
-        <label style="display:flex;align-items:center;gap:6px;margin:0;"><input type="checkbox" id="dmTrichDNTU" ${d.trichDNTU?'checked':''}> Trích DNTU 20%</label>
-        <label style="display:flex;align-items:center;gap:6px;margin:0;"><input type="checkbox" id="dmTrichQuyPT" ${d.trichQuyPT?'checked':''}> Trích Quỹ PT 15%</label>
-        <label style="display:flex;align-items:center;gap:6px;margin:0;"><input type="checkbox" id="dmNopTNCN" ${d.nopTNCN?'checked':''}> Khấu trừ TNCN 10%</label>
-        <label style="display:flex;align-items:center;gap:6px;margin:0;"><input type="checkbox" id="dmHHTuyenSinh" ${d.hhTuyenSinh?'checked':''}> Tính hoa hồng tuyển sinh</label>
-        <label style="display:flex;align-items:center;gap:6px;margin:0;"><input type="checkbox" id="dmHHChuyenMon" ${d.hhChuyenMon?'checked':''} onchange="document.getElementById('dmHHCMPct').style.display=this.checked?'':'none'"> Tính hoa hồng chuyên môn</label>
-        <span id="dmHHCMPct" style="display:${d.hhChuyenMon?'':'none'};align-items:center;gap:6px;">
-          <input type="number" step="0.5" min="0" max="100" id="dmPctHHChuyenMon" value="${d.pctHHChuyenMon||''}" placeholder="7" style="max-width:80px;margin:0;">
-          <span class="small muted">% doanh số</span></span>
+      <div class="field" style="flex:1 1 100%;margin-top:8px;">
+        <label style="margin-bottom:6px;">Quy ước trích nộp &amp; hoa hồng</label>
+        <div style="display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;padding:11px 13px;border:1px solid var(--border);border-radius:10px;background:#fafbfc;">
+          <label style="display:flex;align-items:center;gap:7px;margin:0;white-space:nowrap;"><input type="checkbox" id="dmTrichDNTU" ${d.trichDNTU?'checked':''} style="width:auto;margin:0;"> Trích DNTU 20%</label>
+          <label style="display:flex;align-items:center;gap:7px;margin:0;white-space:nowrap;"><input type="checkbox" id="dmTrichQuyPT" ${d.trichQuyPT?'checked':''} style="width:auto;margin:0;"> Trích Quỹ PT 15%</label>
+          <label style="display:flex;align-items:center;gap:7px;margin:0;white-space:nowrap;"><input type="checkbox" id="dmNopTNCN" ${d.nopTNCN?'checked':''} style="width:auto;margin:0;"> Khấu trừ TNCN 10%</label>
+          <label style="display:flex;align-items:center;gap:7px;margin:0;white-space:nowrap;"><input type="checkbox" id="dmHHTuyenSinh" ${d.hhTuyenSinh?'checked':''} style="width:auto;margin:0;"> Hoa hồng tuyển sinh</label>
+          <label style="display:flex;align-items:center;gap:7px;margin:0;white-space:nowrap;"><input type="checkbox" id="dmHHChuyenMon" ${d.hhChuyenMon?'checked':''} style="width:auto;margin:0;" onchange="document.getElementById('dmHHCMPct').style.display=this.checked?'inline-flex':'none'"> Hoa hồng chuyên môn</label>
+          <span id="dmHHCMPct" style="display:${d.hhChuyenMon?'inline-flex':'none'};align-items:center;gap:6px;white-space:nowrap;">
+            <input type="number" step="0.5" min="0" max="100" id="dmPctHHChuyenMon" value="${d.pctHHChuyenMon||''}" placeholder="7" style="width:76px;margin:0;">
+            <span class="small muted">% doanh số</span></span>
+        </div>
+        <div class="hint" style="margin-top:6px;">Hai khoản trích đều tính TRÊN phần Trung tâm thực nhận. VD thực nhận 100.000 → DNTU 20.000 + Quỹ PT 15.000 → FLIC còn 65.000.</div>
       </div>
-      <div class="hint" style="margin-top:4px;">Cả hai khoản trích đều tính TRÊN phần Trung tâm thực nhận. VD thực nhận 100.000 → DNTU 20.000 + Quỹ PT 15.000 → FLIC còn 65.000.</div>
     </div>
     <div class="btn-row" style="margin-top:14px;">
       <button class="btn btn-primary" onclick="saveDanhMuc()">✓ Lưu</button>
