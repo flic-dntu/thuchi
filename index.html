@@ -200,7 +200,7 @@
   <div class="app-header">
     <div>
       <h1>💰 Sổ Thu Chi FLIC</h1>
-      <div class="ver">Phiên bản: V2.1.0</div>
+      <div class="ver">Phiên bản: V2.3.0</div>
     </div>
     <div class="row" style="gap:8px;">
       <div class="role-chip" id="roleChip" onclick="doLogout()">—</div>
@@ -365,6 +365,27 @@ let tyLeConfig = {dntu:20, quyPT:15, quyPTTuNgay:'2026-03-01', tncnChia:9, tncnT
 /* V1.9.8 — Số chi ghi trong sổ là số NGƯỜI NHẬN THỰC NHẬN (đã trừ thuế).
    Quy ngược: thu nhập trước thuế = thực chi ÷ 0,9 ; thuế 10% = thực chi ÷ 9 */
 /* V1.9.6 — 5 mã chi có khấu trừ thuế TNCN 10% theo quy ước của Trung tâm */
+/* V2.1.1 — Quỹ PT 15%: 7,5% dự phòng (nằm lại quỹ) · 7,5% chi cho Ban giám đốc,
+   chia đều 2 người mỗi người 3,75%, khấu trừ 10% TNCN trước khi chuyển khoản. */
+/* V2.2.0 — phân loại doanh thu tuyển sinh, dùng để trích hoa hồng cho nhân viên */
+/* V2.3.0 — HOA HỒNG. Áp dụng từ 01/08/2026, KHÔNG hồi cứu thời gian trước.
+   Tuyển sinh: MỖI nhân viên hưởng tyLe% trên TỔNG doanh số New sale của các mã có tick.
+   Chuyên môn: mỗi mã một tỷ lệ riêng, tính trên toàn bộ doanh số của mã đó. */
+const HH_MAC_DINH = {tuNgay:'2026-08-01', tsTyLe:4, tsSoNguoi:2};
+function hhCfg(){
+  return Object.assign({}, HH_MAC_DINH, tyLeConfig.hh || {});
+}
+
+const LOAI_BAN = [
+  {key:'new',   nhan:'New sale', mau:'#1a7a4c', nen:'#e6f4ec'},
+  {key:'renew', nhan:'Renew',    mau:'#2b6cb0', nen:'#e8f0fe'}
+];
+function nhanLoaiBan(k){ const x=LOAI_BAN.find(v=>v.key===k); return x?x.nhan:''; }
+
+const BGD_MAC_DINH = [
+  {chuc:'Giám đốc',      ten:''},
+  {chuc:'Phó giám đốc',  ten:''}
+];
 const TNCN_MA_MAC_DINH = ['CP-Luong-L2','CP-Luong-L3','CP-HĐDV','CP-HDT','CP-QUY-BGD'];
 /* V1.7.2 */
 let chiDinhKyList = [];          // khoản chi định kỳ hàng tháng
@@ -599,7 +620,7 @@ function listenAll(){
   }, fsErr);
 
   db.collection('flic_settings').doc('tyLeTrichNop').onSnapshot(snap=>{
-    if(snap.exists) tyLeConfig = Object.assign({dntu:20, quyPT:15, quyPTTuNgay:'2026-03-01', tncnChia:9, tncnTyLe:10, tncnTuNgay:'2026-07-01'}, snap.data());
+    if(snap.exists) tyLeConfig = Object.assign({dntu:20, quyPT:15, quyPTTuNgay:'2026-03-01', tncnChia:9, tncnTyLe:10, tncnTuNgay:'2026-07-01', hh:HH_MAC_DINH}, snap.data());
     if(activeTab==='congNo') renderCongNoTab();
     if(activeTab==='canDoiTien') renderCanDoiTienTab();
     if(activeTab==='canDoi') renderCanDoiTab();
@@ -720,6 +741,11 @@ function openEditDanhMuc(id){
         <label style="display:flex;align-items:center;gap:6px;margin:0;"><input type="checkbox" id="dmTrichDNTU" ${d.trichDNTU?'checked':''}> Trích DNTU 20%</label>
         <label style="display:flex;align-items:center;gap:6px;margin:0;"><input type="checkbox" id="dmTrichQuyPT" ${d.trichQuyPT?'checked':''}> Trích Quỹ PT 15%</label>
         <label style="display:flex;align-items:center;gap:6px;margin:0;"><input type="checkbox" id="dmNopTNCN" ${d.nopTNCN?'checked':''}> Khấu trừ TNCN 10%</label>
+        <label style="display:flex;align-items:center;gap:6px;margin:0;"><input type="checkbox" id="dmHHTuyenSinh" ${d.hhTuyenSinh?'checked':''}> Tính hoa hồng tuyển sinh</label>
+        <label style="display:flex;align-items:center;gap:6px;margin:0;"><input type="checkbox" id="dmHHChuyenMon" ${d.hhChuyenMon?'checked':''} onchange="document.getElementById('dmHHCMPct').style.display=this.checked?'':'none'"> Tính hoa hồng chuyên môn</label>
+        <span id="dmHHCMPct" style="display:${d.hhChuyenMon?'':'none'};align-items:center;gap:6px;">
+          <input type="number" step="0.5" min="0" max="100" id="dmPctHHChuyenMon" value="${d.pctHHChuyenMon||''}" placeholder="7" style="max-width:80px;margin:0;">
+          <span class="small muted">% doanh số</span></span>
       </div>
       <div class="hint" style="margin-top:4px;">Cả hai khoản trích đều tính TRÊN phần Trung tâm thực nhận. VD thực nhận 100.000 → DNTU 20.000 + Quỹ PT 15.000 → FLIC còn 65.000.</div>
     </div>
@@ -755,9 +781,12 @@ function saveDanhMuc(){
   const trichDNTU  = loaiPhieu==='thu' && document.getElementById('dmTrichDNTU').checked;
   const trichQuyPT = loaiPhieu==='thu' && document.getElementById('dmTrichQuyPT').checked;
   const nopTNCN = loaiPhieu==='chi' && (document.getElementById('dmNopTNCN')||{checked:false}).checked;
+  const hhTuyenSinh = loaiPhieu==='thu' && (document.getElementById('dmHHTuyenSinh')||{checked:false}).checked;
+  const hhChuyenMon = loaiPhieu==='thu' && (document.getElementById('dmHHChuyenMon')||{checked:false}).checked;
+  const pctHHChuyenMon = hhChuyenMon ? (parseFloat((document.getElementById('dmPctHHChuyenMon')||{value:''}).value)||0) : 0;
   if(!maKhoan || !tenKhoan){ showToast('Nhập đủ Mã khoản và Tên khoản'); return; }
   if(danhMucList.some(d=>d.maKhoan===maKhoan && d.id!==editingDanhMucId)){ showToast('Mã khoản này đã tồn tại'); return; }
-  const data = {stt, maKhoan, tenKhoan, mucThu, linhVuc, loai, loaiPhieu, nhomChia, thucThuPercent, laDieuChuyenNoiBo, trichDNTU, trichQuyPT, nopTNCN};
+  const data = {stt, maKhoan, tenKhoan, mucThu, linhVuc, loai, loaiPhieu, nhomChia, thucThuPercent, laDieuChuyenNoiBo, trichDNTU, trichQuyPT, nopTNCN, hhTuyenSinh, hhChuyenMon, pctHHChuyenMon};
   const p = editingDanhMucId ? db.collection('flic_danhmuc').doc(editingDanhMucId).update(data) : db.collection('flic_danhmuc').add(data);
   p.then(()=>{ logActivity(`${editingDanhMucId?'Sửa':'Thêm'} khoản ${maKhoan}`); showToast('Đã lưu'); closeEditDanhMuc(); }).catch(fsErr);
 }
@@ -797,7 +826,10 @@ function importDanhMucExcel(evt){
           // V1.7.1 — 2 cột đánh dấu "x": có phải trích DNTU 20% / Quỹ PT 15% không
           trichDNTU:  String(r[9]||'').trim().toLowerCase()==='x',
           trichQuyPT: String(r[10]||'').trim().toLowerCase()==='x',
-          nopTNCN:    String(r[11]||'').trim().toLowerCase()==='x'
+          nopTNCN:    String(r[11]||'').trim().toLowerCase()==='x',
+          hhTuyenSinh: String(r[12]||'').trim().toLowerCase()==='x',
+          hhChuyenMon: String(r[13]||'').trim().toLowerCase()==='x',
+          pctHHChuyenMon: parseFloat(r[14])||0
         };
         const existing = danhMucList.find(d=>d.maKhoan===maKhoan);
         if(existing){ await db.collection('flic_danhmuc').doc(existing.id).update(data); updated++; }
@@ -962,6 +994,26 @@ function renderPhieuForm(loai){
           <input type="date" id="ph_${loai}_ngayThi" value="${editing?escapeHtml(editing.ngayThi||''):''}" onchange="tuSinhDienGiai('${loai}')">
         </div>
       </div>
+      ${loai==='thu' ? `
+      <div class="grid" style="grid-template-columns:1fr 1fr 1fr;margin-top:4px;">
+        <div class="field"><label>Số lượng thí sinh</label>
+          <input type="number" min="1" step="1" id="ph_thu_soLuongTS" placeholder="1"
+                 value="${editing? (editing.soLuongTS||'') : ''}" oninput="tuSinhDienGiai('thu')">
+        </div>
+        <div class="field"><label>Loại bán (tuyển sinh)</label>
+          <select id="ph_thu_loaiBan">
+            <option value="" ${editing&&!editing.loaiBan?'selected':''}>— không phân loại —</option>
+            ${LOAI_BAN.map(x=>`<option value="${x.key}" ${editing&&editing.loaiBan===x.key?'selected':''}>${x.nhan}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field"><label>Nhân viên tuyển sinh</label>
+          <input type="text" id="ph_thu_nvTuyenSinh" list="nvTuyenSinhSuggestions" placeholder="Họ tên nhân viên"
+                 value="${editing?escapeHtml(editing.nvTuyenSinh||''):''}">
+          <datalist id="nvTuyenSinhSuggestions">${goiYTruong('thu','nvTuyenSinh').map(v=>`<option value="${escapeHtml(v)}"></option>`).join('')}</datalist>
+        </div>
+      </div>
+      <div class="hint" style="margin-top:-2px;">Số lượng thí sinh dùng cho phiếu thu gộp nhiều thí sinh của một đối tác. Loại bán &amp; nhân viên dùng để trích hoa hồng tuyển sinh.</div>
+      `:''}
       <div class="row" style="margin-top:6px;">
         <label style="margin:0;">Diễn giải</label>
         <button class="btn btn-outline btn-sm" style="padding:3px 10px;" onclick="taoLaiDienGiai('${loai}')" title="Quay về nội dung tự sinh">↻ Tạo lại</button>
@@ -1073,6 +1125,7 @@ function buildPhieuVoucherHtml(p){
         ${p.diaChi? `<div style="margin-top:7px;">Địa chỉ: <b>${escapeHtml(p.diaChi)}</b></div>`:''}
         ${p.cccd? `<div style="margin-top:7px;">CCCD số: <b>${escapeHtml(p.cccd)}</b></div>`:''}
         ${p.mst? `<div style="margin-top:7px;">Mã số thuế: <b>${escapeHtml(p.mst)}</b></div>`:''}
+        ${(parseInt(p.soLuongTS)||0)>1? `<div style="margin-top:7px;">Số lượng thí sinh: <b>${parseInt(p.soLuongTS)}</b></div>`:''}
         ${p.hocVien && p.nguoiNop && p.hocVien!==p.nguoiNop ? `<div style="margin-top:7px;">Học viên: <b>${escapeHtml(p.hocVien)}</b></div>`:''}
         <div style="margin-top:7px;">${lyDoLabel}: <b>${escapeHtml(p.dienGiai || p.tenKhoan || '')}</b></div>
         <div style="margin-top:7px;">Số tiền: <b style="font-size:17px;">${formatNumber(p.soTien)} đ</b>
@@ -1269,6 +1322,7 @@ function renderPhieuRecentList(loai){
     list = list.filter(p=>{
       const kho = searchNorm([p.hocVien, p.nguoiNop, p.dienGiai, p.maKhoan, p.tenKhoan,
         p.soPhieu, p.soHoaDon, p.diaChi, p.cccd, p.mst, p.ghiChu, p.nganHang,
+        p.nvTuyenSinh, nhanLoaiBan(p.loaiBan),
         String(p.soTien||''), formatNumber(p.soTien||0), fmtDateVN(p.ngay)].filter(Boolean).join(' '));
       return tuKhoa.every(t=> kho.includes(t));
     }).slice(0,200);
@@ -1309,7 +1363,9 @@ function renderPhieuRecentList(loai){
     <div class="list-row" style="flex-direction:column;align-items:stretch;">
       <div class="row">
         <div>
-          <div><b>${escapeHtml(p.maKhoan)}</b> <span class="small muted">${fmtDateVN(p.ngay)}</span>${p.soPhieu?` <span class="small" style="color:var(--primary);font-weight:700;">${escapeHtml(p.soPhieu)}</span>`:''}${p.hocVien?` · <span class="small">👤 ${escapeHtml(p.hocVien)}</span>`:''}</div>
+          <div><b>${escapeHtml(p.maKhoan)}</b> <span class="small muted">${fmtDateVN(p.ngay)}</span>${p.soPhieu?` <span class="small" style="color:var(--primary);font-weight:700;">${escapeHtml(p.soPhieu)}</span>`:''}${
+            p.loaiBan? (()=>{const x=LOAI_BAN.find(v=>v.key===p.loaiBan)||{}; return ` <span style="font-size:11px;font-weight:700;padding:1px 8px;border-radius:99px;background:${x.nen};color:${x.mau};">${x.nhan}</span>`;})() :''}${
+            (parseInt(p.soLuongTS)||0)>1? ` <span style="font-size:11px;font-weight:700;padding:1px 8px;border-radius:99px;background:#fff4e0;color:#9a6a00;">${parseInt(p.soLuongTS)} TS</span>`:''}${p.hocVien?` · <span class="small">👤 ${escapeHtml(p.hocVien)}</span>`:''}</div>
           <div class="small muted">${escapeHtml(p.dienGiai||'')}</div>
         </div>
         <b style="color:${loai==='thu'?'var(--ok)':'var(--danger)'};white-space:nowrap;">${loai==='thu'?'+':'-'}${formatNumber(p.soTien)}đ</b>
@@ -1362,12 +1418,15 @@ function editPhieu(loai, id){
 let dienGiaiTuSua = {thu:false, chi:false};
 
 /* Công thức chung: Tên khoản + " thi ngày d/m/yyyy" + " - Tên học viên" */
-function ghepDienGiai(tenKhoan, ngayThi, hocVien){
+function ghepDienGiai(tenKhoan, ngayThi, hocVien, soLuongTS){
   let out = (tenKhoan||'').trim();
   if(ngayThi){
     const [y,m,dd] = String(ngayThi).split('-');
     if(y && m && dd) out += ` thi ngày ${parseInt(dd,10)}/${parseInt(m,10)}/${y}`;
   }
+  /* V2.2.0 — chỉ ghi số lượng khi từ 2 thí sinh trở lên (phiếu gộp của đối tác) */
+  const sl = parseInt(soLuongTS)||0;
+  if(sl>1) out += ` - ${sl} TS`;
   if(hocVien) out += ` - ${hocVien.trim()}`;
   return out.trim();
 }
@@ -1376,12 +1435,13 @@ function dungDienGiai(loai){
   const d = phieuSelectedDanhMuc[loai];
   return ghepDienGiai(d ? (d.tenKhoan || d.maKhoan || '') : '',
     (document.getElementById(`ph_${loai}_ngayThi`)||{value:''}).value,
-    (document.getElementById(`ph_${loai}_hocVien`)||{value:''}).value);
+    (document.getElementById(`ph_${loai}_hocVien`)||{value:''}).value,
+    (document.getElementById(`ph_thu_soLuongTS`)||{value:''}).value);
 }
 /* Dựng từ một phiếu ĐÃ LƯU — dùng để đoán xem diễn giải là tự sinh hay viết tay */
 function dungDienGiaiTuPhieu(p){
   const dm = danhMucList.find(x=>x.maKhoan===p.maKhoan);
-  return ghepDienGiai((dm && dm.tenKhoan) || p.tenKhoan || p.maKhoan || '', p.ngayThi||'', p.hocVien||'');
+  return ghepDienGiai((dm && dm.tenKhoan) || p.tenKhoan || p.maKhoan || '', p.ngayThi||'', p.hocVien||'', p.soLuongTS||'');
 }
 /* So khớp: diễn giải đang lưu có đúng bằng chuỗi tự sinh không */
 function dienGiaiLaTuDong(p){
@@ -1436,6 +1496,9 @@ async function savePhieu(loai){
   const ngayThi = (document.getElementById(`ph_${loai}_ngayThi`)||{value:''}).value || '';
   const cccd = (document.getElementById(`ph_${loai}_cccd`)||{value:''}).value.trim();
   const mst = (document.getElementById(`ph_${loai}_mst`)||{value:''}).value.trim();
+  const soLuongTS = parseInt((document.getElementById(`ph_thu_soLuongTS`)||{value:''}).value) || null;
+  const loaiBan = (document.getElementById(`ph_thu_loaiBan`)||{value:''}).value || '';
+  const nvTuyenSinh = (document.getElementById(`ph_thu_nvTuyenSinh`)||{value:''}).value.trim();
   const hinhThuc = document.getElementById(`ph_${loai}_hinhThuc`).value;
   const nganHang = document.getElementById(`ph_${loai}_nganHang`).value.trim();
   const ghiChu = document.getElementById(`ph_${loai}_ghiChu`).value.trim();
@@ -1447,6 +1510,9 @@ async function savePhieu(loai){
   const editId = phieuEditingId[loai];   // V1.7.8 — phải khai báo TRƯỚC khi dùng ở dưới
   const data = {
     loai, ngay, soHoaDon, maKhoan: d.maKhoan, tenKhoan: d.tenKhoan, dienGiai, hocVien, nguoiNop, ngayThi, diaChi, cccd, mst, soTien,
+    soLuongTS: (loai==='thu'? soLuongTS : null),
+    loaiBan: (loai==='thu'? loaiBan : ''),
+    nvTuyenSinh: (loai==='thu'? nvTuyenSinh : ''),
     soPhieu: (editId ? (phieuList.find(x=>x.id===editId)||{}).soPhieu || sinhSoPhieu(loai, ngay) : sinhSoPhieu(loai, ngay)),
     hinhThuc, nganHang, ghiChu,
     nhomChia: loai==='thu'? (d.nhomChia||null) : null,
@@ -1804,7 +1870,7 @@ async function exportPhieuThuKeToan(){
       dinhDanh,                                             // 5
       p.maKhoan || '',                                      // 6 · dùng mã khoản của app
       p.dienGiai || '',                                     // 7
-      1,                                                    // 8 · mặc định 1, kế toán sửa
+      parseInt(p.soLuongTS)||1,                             // 8 · lấy từ ô "Số lượng thí sinh", mặc định 1
       null,                                                 // 9 · công thức bên dưới
       p.soTien || 0,                                        // 10
       p.ngay ? (function(){ const [Y,M,Dd]=p.ngay.split('-').map(Number); return new Date(Date.UTC(Y,M-1,Dd)); })() : null,  // 11 · ngày lập phiếu (dùng UTC để Excel không lệch 1 ngày)
@@ -1969,18 +2035,33 @@ function renderCanDoiTab(){
       </div>
     </div>
     <div id="linhVucBody"></div>
+    <div id="kyThiBody"></div>
+    <div id="tuyenSinhBody"></div>
+    <div id="chuyenMonBody"></div>
     <div id="canDoiBody"></div>
   `;
   renderCanDoiFilter();
   renderCanDoiBody();
   const lvEl = document.getElementById('linhVucBody');
   if(lvEl) lvEl.innerHTML = renderThongKeLinhVuc();
+  const ktEl = document.getElementById('kyThiBody');
+  if(ktEl) ktEl.innerHTML = renderThongKeKyThi();
+  const tsEl = document.getElementById('tuyenSinhBody');
+  if(tsEl) tsEl.innerHTML = renderDoiSoatTuyenSinh();
+  const cmEl = document.getElementById('chuyenMonBody');
+  if(cmEl) cmEl.innerHTML = renderHHChuyenMon();
 }
 function setCanDoiMode(mode){ canDoiMode = mode; renderCanDoiFilter(); renderCanDoiBody(); refreshLinhVuc(); }
 function renderCanDoiVaLinhVuc(){ renderCanDoiBody(); refreshLinhVuc(); }
 function refreshLinhVuc(){
   const el = document.getElementById('linhVucBody');
   if(el) el.innerHTML = renderThongKeLinhVuc();
+  const kt = document.getElementById('kyThiBody');
+  if(kt) kt.innerHTML = renderThongKeKyThi();
+  const ts = document.getElementById('tuyenSinhBody');
+  if(ts) ts.innerHTML = renderDoiSoatTuyenSinh();
+  const cm = document.getElementById('chuyenMonBody');
+  if(cm) cm.innerHTML = renderHHChuyenMon();
 }
 function renderCanDoiFilter(){
   const el = document.getElementById('canDoiFilterWrap');
@@ -2106,6 +2187,269 @@ async function exportLinhVucExcel(){
   document.body.appendChild(a); a.click(); a.remove();
   URL.revokeObjectURL(url);
   logActivity(`Xuất Excel Thu Chi theo lĩnh vực (${d.label})`);
+}
+
+/* ===== V2.2.0 — THỐNG KÊ KỲ THI: đếm số thí sinh theo NGÀY THI, tách theo bài thi ===== */
+let kyThiMoRong = {};
+/* ===== V2.3.0 — HOA HỒNG TUYỂN SINH & CHUYÊN MÔN =====
+   Chỉ tính các mã có tick trong Danh Mục, và chỉ từ mốc đã cấu hình (mặc định 01/08/2026). */
+function hhLocPhieu(){
+  const c = hhCfg();
+  const {from, to, label} = canDoiGetRange();
+  const tu = c.tuNgay && c.tuNgay > from ? c.tuNgay : from;   // không hồi cứu trước mốc
+  return {rows: phieuList.filter(p=> p.loai==='thu' && p.ngay>=tu && p.ngay<=to
+            && !cnLaNoiBo(p) && !laButToan(p)),
+          tu, to, label, c};
+}
+function tuyenSinhCompute(){
+  const {rows, tu, to, label, c} = hhLocPhieu();
+  const nv = {};
+  let tongNew=0, tongRenew=0, chuaPL=0, ngoaiDS=0;
+  rows.forEach(p=>{
+    const dm = danhMucList.find(x=>x.maKhoan===p.maKhoan) || {};
+    if(!dm.hhTuyenSinh){ ngoaiDS += p.soTien; return; }   // mã không tick -> không tính hoa hồng
+    if(p.loaiBan==='new') tongNew += p.soTien;
+    else if(p.loaiBan==='renew') tongRenew += p.soTien;
+    else { chuaPL += p.soTien; return; }
+    const ten = (p.nvTuyenSinh||'').trim() || '(chưa ghi nhân viên)';
+    if(!nv[ten]) nv[ten] = {news:0, renew:0, spNew:0, spRenew:0};
+    if(p.loaiBan==='new'){ nv[ten].news += p.soTien; nv[ten].spNew++; }
+    else { nv[ten].renew += p.soTien; nv[ten].spRenew++; }
+  });
+  const moiNguoi = Math.round(tongNew * (c.tsTyLe/100));
+  return {nv, tongNew, tongRenew, chuaPL, ngoaiDS, tu, to, label, c,
+          moiNguoi, tongChi: moiNguoi * c.tsSoNguoi};
+}
+function chuyenMonCompute(){
+  const {rows, tu, to, label} = hhLocPhieu();
+  const ma = {};
+  rows.forEach(p=>{
+    const dm = danhMucList.find(x=>x.maKhoan===p.maKhoan) || {};
+    if(!dm.hhChuyenMon || !(+dm.pctHHChuyenMon)) return;
+    if(!ma[p.maKhoan]) ma[p.maKhoan] = {ten:dm.tenKhoan||'', pct:+dm.pctHHChuyenMon, ds:0, sp:0};
+    ma[p.maKhoan].ds += p.soTien; ma[p.maKhoan].sp++;
+  });
+  Object.values(ma).forEach(x=> x.hh = Math.round(x.ds * x.pct/100));
+  const tongDS = Object.values(ma).reduce((s,x)=>s+x.ds,0);
+  const tongHH = Object.values(ma).reduce((s,x)=>s+x.hh,0);
+  return {ma, tongDS, tongHH, tu, to, label};
+}
+async function luuCauHinhHH(){
+  const tu = (document.getElementById('hh_tuNgay')||{value:''}).value || '';
+  const tl = parseFloat((document.getElementById('hh_tyLe')||{value:'4'}).value) || 4;
+  const sn = parseInt((document.getElementById('hh_soNguoi')||{value:'2'}).value) || 2;
+  try{
+    await db.collection('flic_settings').doc('tyLeTrichNop').set(
+      Object.assign({}, tyLeConfig, {hh:{tuNgay:tu, tsTyLe:tl, tsSoNguoi:sn}}));
+    logActivity(`Cấu hình hoa hồng tuyển sinh: ${tl}%/người × ${sn} người, từ ${tu||'đầu kỳ'}`);
+    showToast('Đã lưu cấu hình hoa hồng');
+  }catch(e){ fsErr(e); }
+}
+function renderDoiSoatTuyenSinh(){
+  const d = tuyenSinhCompute();
+  const ds = Object.keys(d.nv).sort((a,b)=> d.nv[b].news - d.nv[a].news);
+  const n = v => formatNumber(Math.round(v));
+  const soMaTick = danhMucList.filter(x=>x.hhTuyenSinh).length;
+  return `<div class="card">
+    <div class="row"><div class="card-title" style="margin:0;">🤝 Hoa hồng tuyển sinh — New sale</div>
+      <button class="btn btn-outline btn-sm" onclick="exportTuyenSinhExcel()">📊 Xuất Excel</button></div>
+    <div class="hint">Kỳ: <b>${escapeHtml(d.label)}</b> · chỉ tính từ <b>${d.c.tuNgay? fmtDateVN(d.c.tuNgay):'đầu kỳ'}</b> trở đi.
+      Mỗi nhân viên hưởng <b>${d.c.tsTyLe}%</b> trên <b>TỔNG</b> doanh số New sale của ${soMaTick} mã đã tick trong Danh Mục.</div>
+    ${!soMaTick? '<div class="hint" style="color:var(--danger);margin-top:6px;">⚠ Chưa mã nào được tick "Tính hoa hồng tuyển sinh" trong tab Danh Mục.</div>':''}
+    <div class="row" style="gap:8px;align-items:center;margin:8px 0;flex-wrap:wrap;">
+      <span class="small muted">Áp dụng từ</span>
+      <input type="date" style="max-width:165px;margin:0;" id="hh_tuNgay" value="${d.c.tuNgay||''}">
+      <span class="small muted">Tỷ lệ mỗi người (%)</span>
+      <input type="number" step="0.5" min="0" max="20" style="max-width:85px;margin:0;" id="hh_tyLe" value="${d.c.tsTyLe}">
+      <span class="small muted">Số nhân viên</span>
+      <input type="number" step="1" min="1" max="20" style="max-width:75px;margin:0;" id="hh_soNguoi" value="${d.c.tsSoNguoi}">
+      <button class="btn btn-outline btn-sm" onclick="luuCauHinhHH()">💾 Lưu</button>
+    </div>
+    <div class="grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:8px;">
+      <div class="kpi"><div class="lbl">Doanh số New sale</div><div class="num" style="color:var(--ok);">${n(d.tongNew)}</div></div>
+      <div class="kpi"><div class="lbl">Doanh số Renew</div><div class="num" style="color:#2b6cb0;">${n(d.tongRenew)}</div></div>
+      <div class="kpi" style="background:#fffaef;border-color:var(--warn);">
+        <div class="lbl">Mỗi người nhận (${d.c.tsTyLe}%)</div><div class="num" style="color:var(--warn);">${n(d.moiNguoi)}</div></div>
+      <div class="kpi" style="background:#fdf4f4;border-color:var(--danger);">
+        <div class="lbl">TỔNG CHI ${d.c.tsSoNguoi} người</div><div class="num" style="color:var(--danger);">${n(d.tongChi)}</div></div>
+    </div>
+    ${ds.length? `<div class="hint" style="margin-bottom:6px;">Doanh số theo từng nhân viên — chỉ để tham khảo, hoa hồng chia đều theo tổng:</div>
+      <div class="table-scroll"><table class="grid-table">
+      <thead><tr><th>Nhân viên tuyển sinh</th><th style="text-align:right;">New sale</th><th style="text-align:right;">Renew</th></tr></thead>
+      <tbody>${ds.map(t=>{const g=d.nv[t]; return `<tr>
+        <td><b>${escapeHtml(t)}</b> <span class="small muted">${g.spNew} New · ${g.spRenew} Renew</span></td>
+        <td style="text-align:right;color:var(--ok);font-weight:600;">${n(g.news)}</td>
+        <td style="text-align:right;color:#2b6cb0;">${n(g.renew)}</td></tr>`;}).join('')}
+      <tr style="background:#eef4f0;font-weight:800;"><td>CỘNG</td>
+        <td style="text-align:right;">${n(d.tongNew)}</td><td style="text-align:right;">${n(d.tongRenew)}</td></tr>
+      </tbody></table></div>`:''}
+    ${d.chuaPL? `<div class="hint" style="color:var(--danger);margin-top:8px;">⚠ Còn ${n(d.chuaPL)}đ thuộc mã có tính hoa hồng nhưng <b>chưa chọn New sale / Renew</b> — chưa vào doanh số.</div>`:''}
+  </div>`;
+}
+function renderHHChuyenMon(){
+  const d = chuyenMonCompute();
+  const ds = Object.keys(d.ma).sort((a,b)=> d.ma[b].hh - d.ma[a].hh);
+  const n = v => formatNumber(Math.round(v));
+  if(!ds.length){
+    const co = danhMucList.filter(x=>x.hhChuyenMon).length;
+    return `<div class="card"><div class="card-title">🎯 Hoa hồng bộ phận chuyên môn</div>
+      <div class="hint" style="color:var(--danger);">${co? 'Chưa có doanh số trong kỳ cho các mã đã tick.' : 'Chưa mã nào được tick "Tính hoa hồng chuyên môn" trong tab Danh Mục.'}</div></div>`;
+  }
+  return `<div class="card">
+    <div class="row"><div class="card-title" style="margin:0;">🎯 Hoa hồng bộ phận chuyên môn</div>
+      <button class="btn btn-outline btn-sm" onclick="exportChuyenMonExcel()">📊 Xuất Excel</button></div>
+    <div class="hint">Kỳ: <b>${escapeHtml(d.label)}</b> · chỉ tính từ <b>${fmtDateVN(d.tu)}</b> trở đi. Mỗi mã một tỷ lệ riêng, khai trong Danh Mục.</div>
+    <div class="table-scroll" style="margin-top:8px;"><table class="grid-table">
+      <thead><tr><th>Mã khoản</th><th>Tên khoản</th><th style="text-align:right;">Số phiếu</th>
+        <th style="text-align:right;">Doanh số</th><th style="text-align:right;">Tỷ lệ</th><th style="text-align:right;">Hoa hồng</th></tr></thead>
+      <tbody>${ds.map(m=>{const g=d.ma[m]; return `<tr>
+        <td><b>${escapeHtml(m)}</b></td><td class="small">${escapeHtml(g.ten)}</td>
+        <td style="text-align:right;color:var(--muted);">${g.sp}</td>
+        <td style="text-align:right;font-weight:600;">${n(g.ds)}</td>
+        <td style="text-align:right;color:#2b6cb0;">${g.pct}%</td>
+        <td style="text-align:right;font-weight:800;color:var(--warn);">${n(g.hh)}</td></tr>`;}).join('')}
+      <tr style="background:#eef4f0;font-weight:800;"><td colspan="3">CỘNG</td>
+        <td style="text-align:right;">${n(d.tongDS)}</td><td></td>
+        <td style="text-align:right;color:var(--warn);font-size:15px;">${n(d.tongHH)}</td></tr>
+      </tbody></table></div>
+  </div>`;
+}
+async function exportTuyenSinhExcel(){
+  if(typeof ExcelJS==='undefined'){ showToast('Đang tải thư viện Excel, thử lại sau'); return; }
+  const d = tuyenSinhCompute();
+  const wb=new ExcelJS.Workbook(); const ws=wb.addWorksheet('Hoa hong tuyen sinh');
+  ws.columns=[{width:34},{width:20},{width:20}];
+  excelChenLogo(wb, ws, 3);
+  ws.addRow(['HOA HỒNG TUYỂN SINH — NEW SALE']).font={bold:true,size:14};
+  ws.addRow([d.label + '  ·  áp dụng từ ' + (d.c.tuNgay? fmtDateVN(d.c.tuNgay):'đầu kỳ')]).font={italic:true,size:11};
+  ws.addRow([]);
+  ws.addRow(['Tổng doanh số New sale', d.tongNew]).getCell(2).numFmt='#,##0';
+  ws.addRow([`Tỷ lệ mỗi nhân viên`, d.c.tsTyLe/100]).getCell(2).numFmt='0.0%';
+  ws.addRow(['Mỗi nhân viên nhận', d.moiNguoi]).getCell(2).numFmt='#,##0';
+  ws.addRow(['Số nhân viên', d.c.tsSoNguoi]);
+  const rt=ws.addRow(['TỔNG CHI HOA HỒNG', d.tongChi]); rt.font={bold:true,size:12}; rt.getCell(2).numFmt='#,##0';
+  ws.addRow([]);
+  const hr=ws.addRow(['NHÂN VIÊN (tham khảo)','NEW SALE','RENEW']); hr.font={bold:true};
+  hr.eachCell(c=>{c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFD9E1F2'}};c.alignment={horizontal:'center'};});
+  Object.keys(d.nv).sort((a,b)=>d.nv[b].news-d.nv[a].news).forEach(t=>{
+    const r=ws.addRow([t, d.nv[t].news, d.nv[t].renew]); r.getCell(2).numFmt='#,##0'; r.getCell(3).numFmt='#,##0'; });
+  const buf=await wb.xlsx.writeBuffer();
+  const blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  const url=URL.createObjectURL(blob); const a=document.createElement('a');
+  a.href=url; a.download=`Hoa-hong-tuyen-sinh-${cnToday()}.xlsx`;
+  document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+  logActivity('Xuất Excel hoa hồng tuyển sinh');
+}
+async function exportChuyenMonExcel(){
+  if(typeof ExcelJS==='undefined'){ showToast('Đang tải thư viện Excel, thử lại sau'); return; }
+  const d = chuyenMonCompute();
+  const ds = Object.keys(d.ma).sort((a,b)=> d.ma[b].hh - d.ma[a].hh);
+  if(!ds.length){ showToast('Chưa có dữ liệu'); return; }
+  const wb=new ExcelJS.Workbook(); const ws=wb.addWorksheet('Hoa hong chuyen mon');
+  ws.columns=[{width:26},{width:38},{width:12},{width:18},{width:10},{width:18}];
+  excelChenLogo(wb, ws, 6);
+  ws.addRow(['HOA HỒNG BỘ PHẬN CHUYÊN MÔN']).font={bold:true,size:14};
+  ws.addRow([d.label + '  ·  áp dụng từ ' + fmtDateVN(d.tu)]).font={italic:true,size:11};
+  ws.addRow([]);
+  const hr=ws.addRow(['MÃ KHOẢN','TÊN KHOẢN','SỐ PHIẾU','DOANH SỐ','TỶ LỆ','HOA HỒNG']); hr.font={bold:true};
+  hr.eachCell(c=>{c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFD9E1F2'}};c.alignment={horizontal:'center',wrapText:true};});
+  ds.forEach(m=>{const g=d.ma[m];
+    const r=ws.addRow([m,g.ten,g.sp,g.ds,g.pct/100,g.hh]);
+    r.getCell(4).numFmt='#,##0'; r.getCell(5).numFmt='0.0%'; r.getCell(6).numFmt='#,##0'; });
+  const rt=ws.addRow(['CỘNG','','',d.tongDS,'',d.tongHH]); rt.font={bold:true};
+  rt.getCell(4).numFmt='#,##0'; rt.getCell(6).numFmt='#,##0';
+  const buf=await wb.xlsx.writeBuffer();
+  const blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  const url=URL.createObjectURL(blob); const a=document.createElement('a');
+  a.href=url; a.download=`Hoa-hong-chuyen-mon-${cnToday()}.xlsx`;
+  document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+  logActivity('Xuất Excel hoa hồng chuyên môn');
+}
+
+function kyThiCompute(){
+  /* Gom theo NGÀY THI, không theo ngày thu tiền — vì báo cáo kỳ thi tính theo ngày thi */
+  const rows = phieuList.filter(p=> p.loai==='thu' && p.ngayThi && !cnLaNoiBo(p) && !laButToan(p));
+  const ky = {};
+  rows.forEach(p=>{
+    const k = p.ngayThi;
+    if(!ky[k]) ky[k] = {ts:0, tien:0, sp:0, bai:{}};
+    const sl = parseInt(p.soLuongTS)||1;
+    ky[k].ts += sl; ky[k].tien += p.soTien; ky[k].sp++;
+    if(!ky[k].bai[p.maKhoan]) ky[k].bai[p.maKhoan] = {ts:0, tien:0, sp:0};
+    ky[k].bai[p.maKhoan].ts += sl;
+    ky[k].bai[p.maKhoan].tien += p.soTien;
+    ky[k].bai[p.maKhoan].sp++;
+  });
+  const thieu = phieuList.filter(p=> p.loai==='thu' && !p.ngayThi && !cnLaNoiBo(p) && !laButToan(p)
+    && /^(TE-01|TE-02|TR-)/.test(p.maKhoan||''));
+  return {ky, thieu};
+}
+function toggleKyThi(k){ kyThiMoRong[k] = !kyThiMoRong[k]; refreshLinhVuc(); }
+function renderThongKeKyThi(){
+  const d = kyThiCompute();
+  const ds = Object.keys(d.ky).sort().reverse();
+  const n = v => formatNumber(Math.round(v));
+  if(!ds.length && !d.thieu.length) return '';
+  return `<div class="card">
+    <div class="row"><div class="card-title" style="margin:0;">🎓 Thống kê kỳ thi — theo NGÀY THI</div>
+      <button class="btn btn-outline btn-sm" onclick="exportKyThiExcel()">📊 Xuất Excel</button></div>
+    <div class="hint">Gom theo <b>ngày thi</b> ghi trên phiếu, không theo ngày thu tiền — đúng cách lập báo cáo kỳ thi. Bấm vào dòng để xem tách theo từng bài thi.</div>
+    ${d.thieu.length? `<div class="hint" style="color:var(--danger);margin-top:6px;">⚠ Có <b>${d.thieu.length}</b> phiếu lệ phí thi chưa ghi Ngày thi — không vào được bảng này. Tìm bằng ô tìm kiếm rồi bổ sung.</div>`:''}
+    <div class="table-scroll" style="max-height:520px;overflow:auto;margin-top:8px;">
+    <table class="grid-table">
+      <thead><tr><th>Ngày thi</th><th style="text-align:right;">Số thí sinh</th>
+        <th style="text-align:right;">Số phiếu</th><th style="text-align:right;">Doanh số</th></tr></thead>
+      <tbody>
+      ${ds.map(k=>{
+        const g = d.ky[k];
+        const mo = !!kyThiMoRong[k];
+        const bai = Object.keys(g.bai).sort((a,b)=> g.bai[b].ts - g.bai[a].ts);
+        return `<tr style="cursor:pointer;" onclick="toggleKyThi('${k}')">
+            <td><span style="color:var(--muted);">${mo?'▾':'▸'}</span> <b>${fmtDateVN(k)}</b>
+              <span class="small muted">(${bai.length} bài thi)</span></td>
+            <td style="text-align:right;font-weight:800;color:#0d7490;">${g.ts}</td>
+            <td style="text-align:right;color:var(--muted);">${g.sp}</td>
+            <td style="text-align:right;font-weight:600;">${n(g.tien)}</td></tr>
+          ${mo ? bai.map(ma=>`<tr style="background:#fafbfc;">
+              <td style="padding-left:26px;" class="small">${escapeHtml(ma)}</td>
+              <td style="text-align:right;" class="small"><b>${g.bai[ma].ts}</b></td>
+              <td style="text-align:right;" class="small muted">${g.bai[ma].sp}</td>
+              <td style="text-align:right;" class="small">${n(g.bai[ma].tien)}</td></tr>`).join('') : ''}`;
+      }).join('')}
+      </tbody></table></div>
+  </div>`;
+}
+async function exportKyThiExcel(){
+  if(typeof ExcelJS==='undefined'){ showToast('Đang tải thư viện Excel, thử lại sau'); return; }
+  const d = kyThiCompute();
+  const ds = Object.keys(d.ky).sort().reverse();
+  if(!ds.length){ showToast('Chưa có phiếu nào ghi Ngày thi'); return; }
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('Ky thi');
+  ws.columns=[{width:14},{width:30},{width:14},{width:12},{width:18}];
+  excelChenLogo(wb, ws, 5);
+  ws.addRow(['THỐNG KÊ KỲ THI — THEO NGÀY THI']).font={bold:true,size:14};
+  ws.addRow(['Toàn bộ dữ liệu đã nhập']).font={italic:true,size:11};
+  ws.addRow([]);
+  const hr = ws.addRow(['NGÀY THI','BÀI THI','SỐ THÍ SINH','SỐ PHIẾU','DOANH SỐ']);
+  hr.font={bold:true}; hr.eachCell(c=>{ c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFD9E1F2'}};
+    c.alignment={horizontal:'center',vertical:'middle',wrapText:true}; });
+  ds.forEach(k=>{
+    const g=d.ky[k];
+    const r=ws.addRow([(function(){const[Y,M,D]=k.split('-').map(Number);return new Date(Date.UTC(Y,M-1,D));})(),
+      'TỔNG KỲ THI', g.ts, g.sp, g.tien]);
+    r.font={bold:true}; r.getCell(1).numFmt='dd/mm/yyyy'; r.getCell(5).numFmt='#,##0';
+    Object.keys(g.bai).sort((a,b)=>g.bai[b].ts-g.bai[a].ts).forEach(ma=>{
+      const x=ws.addRow(['', ma, g.bai[ma].ts, g.bai[ma].sp, g.bai[ma].tien]);
+      x.getCell(5).numFmt='#,##0';
+    });
+  });
+  const buf=await wb.xlsx.writeBuffer();
+  const blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  const url=URL.createObjectURL(blob); const a=document.createElement('a');
+  a.href=url; a.download=`Thong-ke-ky-thi-${cnToday()}.xlsx`;
+  document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+  logActivity(`Xuất Excel thống kê kỳ thi (${ds.length} kỳ)`);
 }
 
 function canDoiCompute(){
@@ -3662,72 +4006,171 @@ let quyXacNhan = null;
 function moXacNhanQuy(buoc, thang){
   const [y,m] = thang.split('-');
   const tenT = `tháng ${parseInt(m,10)}/${y}`;
-  const ngayMD = `${thang}-${String(new Date(+y,+m,0).getDate()).padStart(2,'0')}`;
-  let soTien, tieuDe, mota, mau;
+  const homNay = cnToday();
   if(buoc==='nap'){
-    soTien = Math.round(quyPTPhaiTrichThang(thang));
+    const soTien = Math.round(quyPTPhaiTrichThang(thang));
     if(soTien<=0){ showToast('Tháng này không có nghĩa vụ trích quỹ'); return; }
-    tieuDe = `Nạp Quỹ phát triển — ${tenT}`;
-    mota = `<div class="hint" style="margin-bottom:10px;">Tạo <b>1 phiếu chi mã <code>${QUY_MA.nap}</code></b> — bút toán ghi sổ.
-      Tiền <b>vẫn nằm trong tài khoản Trung tâm</b>, tồn quỹ không đổi, phiếu này ẩn khỏi Sổ Quỹ.</div>`;
-    mau = '#0d7490';
-  } else {
-    const item = quyPTThangChuaTrichBGD().find(x=>x.thang===thang);
-    if(!item){ showToast('Tháng này chưa nạp quỹ hoặc đã trích rồi'); return; }
-    if(!danhMucList.some(d=>d.maKhoan===QUY_MA.chiBGD)){ showToast('Hãy bấm "Tạo mã khoản" trước'); return; }
-    soTien = item.bgd;
-    tieuDe = `Trích cho Ban giám đốc — ${tenT}`;
-    mota = `<div class="hint" style="margin-bottom:10px;">Tạo <b>1 phiếu chi mã <code>${QUY_MA.chiBGD}</code></b> — chi thật.
-      Tiền <b>chuyển ra tài khoản Ban giám đốc</b>, tồn quỹ giảm.
-      Đã nạp quỹ ${tenT}: <b>${formatNumber(item.nap)}đ</b> — 50% theo Điều 8 là <b>${formatNumber(item.bgd)}đ</b>.</div>`;
-    mau = '#6b46c1';
+    const ngayMD = `${thang}-${String(new Date(+y,+m,0).getDate()).padStart(2,'0')}`;
+    quyXacNhan = {buoc, thang, tenT};
+    document.getElementById('quyXacNhanTitle').textContent = `Nạp Quỹ phát triển — ${tenT}`;
+    document.getElementById('quyXacNhanBody').innerHTML = `
+      <div class="hint" style="margin-bottom:10px;">Tạo <b>1 phiếu chi mã <code>${QUY_MA.nap}</code></b> — bút toán ghi sổ.
+        Tiền <b>vẫn nằm trong tài khoản Trung tâm</b>, tồn quỹ không đổi, phiếu này ẩn khỏi Sổ Quỹ.</div>
+      <div class="field"><label>Ngày ghi phiếu</label><input type="date" id="quy_ngay" value="${ngayMD}"></div>
+      <div class="field"><label>Số tiền (VNĐ) — sửa được nếu cần</label>
+        <input type="text" inputmode="numeric" id="quy_soTien" value="${formatNumber(soTien)}" oninput="cnFmt(this)"></div>
+      <div class="field"><label>Ghi chú thêm (không bắt buộc)</label><input type="text" id="quy_ghiChu" placeholder=""></div>
+      <div style="margin-top:10px;padding:10px 12px;border-radius:9px;background:#f6f9fb;border-left:4px solid #0d7490;font-size:13px;">
+        Sau khi tạo, phiếu nằm ở tab <b>Phiếu Chi</b>. Muốn huỷ thì xoá phiếu đó là số liệu quay lại như cũ.</div>`;
+    document.getElementById('quyXacNhanModal').classList.remove('hidden');
+    return;
   }
-  quyXacNhan = {buoc, thang, ngay: ngayMD, tenT};
-  document.getElementById('quyXacNhanTitle').textContent = tieuDe;
+
+  /* ===== BƯỚC 2 — chi 7,5% cho Ban giám đốc, chia đôi, khấu trừ 10% TNCN ===== */
+  const item = quyPTThangChuaTrichBGD().find(x=>x.thang===thang);
+  if(!item){ showToast('Tháng này chưa nạp quỹ hoặc đã trích rồi'); return; }
+  if(!danhMucList.some(d=>d.maKhoan===QUY_MA.chiBGD)){ showToast('Hãy bấm "Tạo mã khoản" trước'); return; }
+  const tongBGD = Math.round(item.nap * 0.5);          // 7,5% doanh thu = 50% quỹ tháng
+  const goiY = quyLayTenBGD();
+  quyXacNhan = {buoc:'bgd', thang, tenT, nap:item.nap, tongBGD};
+  document.getElementById('quyXacNhanTitle').textContent = `Trích cho Ban giám đốc — ${tenT}`;
   document.getElementById('quyXacNhanBody').innerHTML = `
-    ${mota}
-    <div class="field"><label>Ngày ghi phiếu</label><input type="date" id="quy_ngay" value="${ngayMD}"></div>
-    <div class="field"><label>Số tiền (VNĐ) — sửa được nếu cần</label>
-      <input type="text" inputmode="numeric" id="quy_soTien" value="${formatNumber(soTien)}" oninput="cnFmt(this)"></div>
-    <div class="field"><label>Ghi chú thêm (không bắt buộc)</label><input type="text" id="quy_ghiChu" placeholder=""></div>
-    <div style="margin-top:10px;padding:10px 12px;border-radius:9px;background:#f6f9fb;border-left:4px solid ${mau};font-size:13px;">
-      Sau khi tạo, phiếu nằm ở tab <b>Phiếu Chi</b>. Muốn huỷ thì xoá phiếu đó là số liệu quay lại như cũ.</div>`;
+    <div class="hint" style="margin-bottom:10px;">Chi <b>thật</b> — tiền chuyển ra tài khoản cá nhân, tồn quỹ giảm.
+      App tạo <b>2 phiếu chi mã <code>${QUY_MA.chiBGD}</code></b>, mỗi người một phiếu, ghi <b>số thực nhận sau thuế</b>.</div>
+    <div class="table-scroll"><table class="grid-table">
+      <thead><tr><th>Khoản</th><th style="text-align:right;">Số tiền</th></tr></thead>
+      <tbody>
+        <tr><td>Quỹ PT 15% ${tenT} (đã nạp)</td><td style="text-align:right;">${formatNumber(item.nap)}</td></tr>
+        <tr><td style="padding-left:16px;color:#0d7490;">└ 7,5% dự phòng — nằm lại quỹ</td><td style="text-align:right;color:#0d7490;">${formatNumber(item.nap - tongBGD)}</td></tr>
+        <tr style="background:#f8f5fd;font-weight:700;"><td style="padding-left:16px;color:#6b46c1;">└ 7,5% chi Ban giám đốc</td><td style="text-align:right;color:#6b46c1;">${formatNumber(tongBGD)}</td></tr>
+      </tbody></table></div>
+    <div id="quyBangBGD" style="margin-top:10px;"></div>
+    <div class="grid" style="grid-template-columns:1fr 1fr;margin-top:8px;">
+      <div class="field"><label>Ngày chuyển khoản thật</label><input type="date" id="quy_ngay" value="${homNay}" onchange="quyVeBangBGD()"></div>
+      <div class="field"><label>Tổng chi cho BGĐ (sửa được)</label>
+        <input type="text" inputmode="numeric" id="quy_tongBGD" value="${formatNumber(tongBGD)}" oninput="cnFmt(this);quyVeBangBGD()"></div>
+    </div>
+    <div class="grid" style="grid-template-columns:1fr 1fr;">
+      <div class="field"><label>Tên Giám đốc</label>
+        <input type="text" id="quy_ten0" value="${escapeHtml(goiY[0]||'')}" placeholder="Họ tên người nhận"></div>
+      <div class="field"><label>Tên Phó giám đốc</label>
+        <input type="text" id="quy_ten1" value="${escapeHtml(goiY[1]||'')}" placeholder="Họ tên người nhận"></div>
+    </div>
+    <div class="field"><label>Ghi chú thêm (số uỷ nhiệm chi…)</label><input type="text" id="quy_ghiChu" placeholder=""></div>
+    <div style="margin-top:8px;padding:10px 12px;border-radius:9px;background:#f8f5fd;border-left:4px solid #6b46c1;font-size:13px;">
+      Số ghi vào phiếu là <b>số thực nhận</b> (đã trừ thuế) — đúng số chuyển khoản trên uỷ nhiệm chi.
+      App tự tính lại TNCN theo công thức <b>thực nhận ÷ ${+tyLeConfig.tncnChia||9}</b>.</div>`;
   document.getElementById('quyXacNhanModal').classList.remove('hidden');
+  quyVeBangBGD();
 }
+
+/* Gợi ý tên BGĐ từ các phiếu CP-QUY-BGD đã lập trước đó */
+function quyLayTenBGD(){
+  const ds = [];
+  phieuList.filter(p=> p.loai==='chi' && p.maKhoan===QUY_MA.chiBGD && (p.nguoiNop||'').trim())
+    .sort((a,b)=> (b.ngay||'').localeCompare(a.ngay||''))
+    .forEach(p=>{ const t=p.nguoiNop.trim(); if(!ds.includes(t)) ds.push(t); });
+  return [ds[0]||'', ds[1]||''];
+}
+
+/* Vẽ lại bảng tính 2 người mỗi khi đổi tổng tiền */
+function quyVeBangBGD(){
+  const el = document.getElementById('quyBangBGD');
+  if(!el) return;
+  const tong = parseSoTien((document.getElementById('quy_tongBGD')||{value:'0'}).value) || 0;
+  const tyLe = (+tyLeConfig.tncnTyLe || 10)/100;
+  /* V2.1.1 — chia đôi KHÔNG được làm tổng lệch: người đầu lấy phần làm tròn xuống,
+     người sau lấy phần còn lại, nên cộng 2 phiếu luôn bằng đúng tổng. */
+  const nguoi = BGD_MAC_DINH.map((x,i)=>{
+    const gop = (i===0) ? Math.floor(tong/2) : (tong - Math.floor(tong/2));
+    const thue = Math.round(gop*tyLe);
+    return {chuc:x.chuc, gop, thue, nhan: gop-thue};
+  });
+  const tongNhan = nguoi.reduce((s,x)=>s+x.nhan,0);
+  const tongThue = nguoi.reduce((s,x)=>s+x.thue,0);
+  el.innerHTML = `<div class="table-scroll"><table class="grid-table">
+    <thead><tr><th>Người nhận</th><th style="text-align:right;">Trước thuế (3,75%)</th>
+      <th style="text-align:right;">TNCN ${(+tyLeConfig.tncnTyLe||10)}%</th>
+      <th style="text-align:right;">CHUYỂN KHOẢN</th></tr></thead>
+    <tbody>${nguoi.map(x=>`<tr>
+      <td><b>${x.chuc}</b></td>
+      <td style="text-align:right;">${formatNumber(x.gop)}</td>
+      <td style="text-align:right;color:var(--warn);">${formatNumber(x.thue)}</td>
+      <td style="text-align:right;font-weight:800;color:#6b46c1;">${formatNumber(x.nhan)}</td></tr>`).join('')}
+      <tr style="background:#f8f5fd;font-weight:800;"><td>CỘNG</td>
+        <td style="text-align:right;">${formatNumber(tong)}</td>
+        <td style="text-align:right;color:var(--warn);">${formatNumber(tongThue)}</td>
+        <td style="text-align:right;color:#6b46c1;">${formatNumber(tongNhan)}</td></tr>
+    </tbody></table></div>`;
+}
+
 function dongXacNhanQuy(){
-  document.getElementById('quyXacNhanModal').classList.add('hidden');
+  const el = document.getElementById('quyXacNhanModal');
+  if(el) el.classList.add('hidden');
   quyXacNhan = null;
 }
+
 async function chotXacNhanQuy(){
   if(!quyXacNhan) return;
-  const {buoc, thang, tenT} = quyXacNhan;
-  const ngay = document.getElementById('quy_ngay').value || quyXacNhan.ngay;
-  const soTien = parseSoTien(document.getElementById('quy_soTien').value);
-  const ghiChuThem = document.getElementById('quy_ghiChu').value.trim();
-  if(!soTien){ showToast('Nhập số tiền'); return; }
+  const {buoc, tenT} = quyXacNhan;
+  const ngay = document.getElementById('quy_ngay').value || cnToday();
+  const ghiChuThem = (document.getElementById('quy_ghiChu')||{value:''}).value.trim();
   const btn = document.getElementById('quyXacNhanOk');
+
+  if(buoc==='nap'){
+    const soTien = parseSoTien(document.getElementById('quy_soTien').value);
+    if(!soTien){ showToast('Nhập số tiền'); return; }
+    btn.disabled = true; btn.textContent = 'Đang tạo...';
+    try{
+      await db.collection('flic_phieu').add({
+        loai:'chi', ngay, soHoaDon:'', maKhoan: QUY_MA.nap, tenKhoan:'Nạp Quỹ phát triển 15%',
+        dienGiai:`Trích nộp Quỹ phát triển Trung tâm 15% doanh thu ${tenT}`,
+        hocVien:'', nguoiNop:'', ngayThi:'', diaChi:'', cccd:'', mst:'',
+        soTien, hinhThuc:'CK', nganHang:'',
+        ghiChu:'Bút toán ghi sổ — tiền vẫn nằm trong tài khoản Trung tâm' + (ghiChuThem? ' · '+ghiChuThem : ''),
+        soPhieu:'', createdAt: Date.now(), createdBy: currentUser?currentUser.username:''
+      });
+      logActivity(`Nạp Quỹ phát triển ${tenT}: ${formatNumber(soTien)}đ`);
+      showToast(`Đã nạp quỹ ${tenT}`);
+      dongXacNhanQuy();
+    }catch(e){ fsErr(e); }
+    finally{ btn.disabled=false; btn.textContent='✓ Xác nhận tạo phiếu'; }
+    return;
+  }
+
+  /* ===== BƯỚC 2 — tạo 2 phiếu chi, mỗi người 3,75% đã trừ TNCN ===== */
+  const tong = parseSoTien(document.getElementById('quy_tongBGD').value);
+  if(!tong){ showToast('Nhập tổng chi cho Ban giám đốc'); return; }
+  const tyLe = (+tyLeConfig.tncnTyLe || 10)/100;
+  const dsNguoi = BGD_MAC_DINH.map((x,i)=>{
+    const gop = (i===0) ? Math.floor(tong/2) : (tong - Math.floor(tong/2));
+    const thue = Math.round(gop*tyLe);
+    return {chuc:x.chuc, ten:(document.getElementById('quy_ten'+i)||{value:''}).value.trim(),
+            gop, thue, nhan: gop-thue};
+  });
+  const thieuTen = dsNguoi.filter(x=>!x.ten);
+  if(thieuTen.length && !window.confirm(`Chưa nhập tên ${thieuTen.map(x=>x.chuc).join(' và ')}. Vẫn tạo phiếu?`)) return;
   btn.disabled = true; btn.textContent = 'Đang tạo...';
   try{
-    const laNap = buoc==='nap';
-    await db.collection('flic_phieu').add({
-      loai:'chi', ngay, soHoaDon:'',
-      maKhoan: laNap ? QUY_MA.nap : QUY_MA.chiBGD,
-      tenKhoan: laNap ? 'Nạp Quỹ phát triển 15%' : 'Chi lương P3 Ban giám đốc & người lao động',
-      dienGiai: laNap
-        ? `Trích nộp Quỹ phát triển Trung tâm 15% doanh thu ${tenT}`
-        : `Chi lương P3 Ban giám đốc & người lao động 7,5% doanh thu ${tenT} (50% Quỹ phát triển)`,
-      hocVien:'', nguoiNop:'', ngayThi:'', diaChi:'', cccd:'', mst:'',
-      soTien, hinhThuc:'CK', nganHang:'',
-      ghiChu: (laNap ? 'Bút toán ghi sổ — tiền vẫn nằm trong tài khoản Trung tâm'
-                     : 'Trích từ Quỹ phát triển theo Điều 8 Quy chế') + (ghiChuThem? ' · '+ghiChuThem : ''),
-      soPhieu: laNap ? '' : sinhSoPhieu('chi', ngay),
-      createdAt: Date.now(), createdBy: currentUser?currentUser.username:''
-    });
-    logActivity(`${laNap?'Nạp Quỹ phát triển':'Trích Quỹ PT cho BGĐ'} ${tenT}: ${formatNumber(soTien)}đ`);
-    showToast(laNap ? `Đã nạp quỹ ${tenT}` : `Đã trích BGĐ ${tenT}`);
+    for(const ng of dsNguoi){
+      await db.collection('flic_phieu').add({
+        loai:'chi', ngay, soHoaDon:'', maKhoan: QUY_MA.chiBGD,
+        tenKhoan:'Chi lương P3 Ban giám đốc & người lao động',
+        dienGiai:`Chi lương P3 ${ng.chuc} 3,75% doanh thu ${tenT}${ng.ten? ' - '+ng.ten : ''}`,
+        hocVien:'', nguoiNop: ng.ten, ngayThi:'', diaChi:'', cccd:'', mst:'',
+        soTien: ng.nhan, hinhThuc:'CK', nganHang:'',
+        ghiChu:`Trước thuế ${formatNumber(ng.gop)}đ − TNCN ${(+tyLeConfig.tncnTyLe||10)}% ${formatNumber(ng.thue)}đ = thực nhận ${formatNumber(ng.nhan)}đ`
+               + (ghiChuThem? ' · '+ghiChuThem : ''),
+        soPhieu: sinhSoPhieu('chi', ngay), createdAt: Date.now(), createdBy: currentUser?currentUser.username:''
+      });
+    }
+    const tongNhan = dsNguoi.reduce((s,x)=>s+x.nhan,0);
+    const tongThue = dsNguoi.reduce((s,x)=>s+x.thue,0);
+    logActivity(`Trích Quỹ PT cho BGĐ ${tenT}: 2 phiếu, chuyển khoản ${formatNumber(tongNhan)}đ, giữ TNCN ${formatNumber(tongThue)}đ`);
+    showToast(`Đã tạo 2 phiếu — chuyển khoản ${formatNumber(tongNhan)}đ`);
     dongXacNhanQuy();
   }catch(e){ fsErr(e); }
-  finally{ btn.disabled = false; btn.textContent = '✓ Xác nhận tạo phiếu'; }
+  finally{ btn.disabled=false; btn.textContent='✓ Xác nhận tạo phiếu'; }
 }
 
 /* V1.9.5 — huỷ toàn bộ phiếu quỹ của một tháng (nạp + trích BGĐ + dùng dự phòng) */
