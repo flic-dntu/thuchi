@@ -200,7 +200,7 @@
   <div class="app-header">
     <div>
       <h1>💰 Sổ Thu Chi FLIC</h1>
-      <div class="ver">Phiên bản: V2.4.0</div>
+      <div class="ver">Phiên bản: V2.6.1</div>
     </div>
     <div class="row" style="gap:8px;">
       <div class="role-chip" id="roleChip" onclick="doLogout()">—</div>
@@ -2035,7 +2035,8 @@ function renderCanDoiTab(){
       <div id="canDoiFilterWrap"></div>
       <div class="btn-row" style="margin-top:10px;">
         <button class="btn btn-outline btn-sm" onclick="exportCanDoiExcel()">📊 Xuất Excel bảng nhóm</button>
-        <button class="btn btn-primary btn-sm" onclick="exportTrichNopExcel()">📋 Xuất Excel TỔNG HỢP TRÍCH NỘP (từng phiếu)</button>
+        <button class="btn btn-primary btn-sm" onclick="exportTrichNopExcel(false)">📋 Xuất Excel TỔNG HỢP TRÍCH NỘP (từng phiếu)</button>
+        <button class="btn btn-primary btn-sm" style="background:#0d7490;border-color:#0d7490;" onclick="exportTrichNopExcel(true)">🔒 Xuất Excel TỔNG HỢP TRÍCH NỘP - Chốt</button>
       </div>
     </div>
     <div id="linhVucBody"></div>
@@ -2099,19 +2100,48 @@ function canDoiGetRange(){
 /* ============ V1.7.3 — THỐNG KÊ THU / CHI THEO LĨNH VỰC ============ */
 let lvExpanded = {};   // lĩnh vực nào đang bung chi tiết
 
+/* V2.5.0 — Các "Loại" KHÔNG tính vào Tổng thu chính thức (không xuất hoá đơn).
+   Đối chiếu theo cột "Loại" trong Danh Mục, bỏ dấu, không phân biệt hoa thường.
+   Muốn thêm/bớt thì sửa danh sách này. */
+const LOAI_NGOAI_DOANH_THU = [
+  'Thu khác',                 // TL-KHAC
+  'Sách Tiếng Anh',           // SA-01-TA
+  'Lãi nhập gốc',             // TL-LNG — lãi ngân hàng, không xuất hoá đơn
+  'Trả lại tài khoản DDA',    // TL-DDA — tiền ngân hàng hoàn lại
+  'Hoàn học phí'              // CP-HHP — trả lại học phí, không phải doanh thu
+];   // theo cột "Loại" trong Danh Mục
+const LV_NGOAI_DOANH_THU   = ['(chưa phân loại)'];             // theo cột "Lĩnh vực"
+/* V2.5.1 — loại thêm mọi khoản Sách / Áo (không xuất hoá đơn).
+   Nhận diện: đúng tên Loại trong danh sách · Lĩnh vực để trống ·
+   hoặc tên Loại có chữ "sách" / "áo" / "đồng phục" (bắt được mã mới sau này). */
+function laNgoaiDoanhThu(loaiCon, linhVuc, maKhoan){
+  /* V2.5.2 — ưu tiên bắt theo MÃ: mọi mã SA-* (SA-01-TA sách, SA-01-AO áo) đều ngoài doanh thu.
+     Cách này chắc chắn hơn dựa vào chữ trong tên Loại. */
+  if(maKhoan && /^SA-/i.test(String(maKhoan))) return true;
+  if(LV_NGOAI_DOANH_THU.some(x => searchNorm(x) === searchNorm(linhVuc))) return true;
+  const s = searchNorm(loaiCon);
+  if(LOAI_NGOAI_DOANH_THU.some(x => searchNorm(x) === s)) return true;
+  return /\bsach\b/.test(s) || /\bao\b/.test(s) || /dong phuc/.test(s);
+}
+
 function lvCompute(){
   const {from, to, label} = canDoiGetRange();
   const rows = phieuList.filter(p=>p.ngay>=from && p.ngay<=to && !cnLaNoiBo(p));
-  const out = {thu:{}, chi:{}, tongThu:0, tongChi:0, from, to, label};
+  const out = {thu:{}, chi:{}, tongThu:0, tongChi:0, thuChinhThuc:0, thuNgoai:0, from, to, label};
   rows.forEach(p=>{
     const dm = danhMucList.find(x=>x.maKhoan===p.maKhoan);
     const lv = (dm && dm.linhVuc) ? dm.linhVuc : '(chưa phân loại)';
     const loaiCon = (dm && dm.loai) ? dm.loai : '(chưa phân loại)';
     const kho = p.loai==='thu' ? out.thu : out.chi;
-    if(!kho[lv]) kho[lv] = {tong:0, con:{}};
+    if(!kho[lv]) kho[lv] = {tong:0, con:{}, ngoai:{}};
     kho[lv].tong += p.soTien;
     kho[lv].con[loaiCon] = (kho[lv].con[loaiCon]||0) + p.soTien;
-    if(p.loai==='thu') out.tongThu += p.soTien; else out.tongChi += p.soTien;
+    if(p.loai==='thu'){
+      out.tongThu += p.soTien;
+      /* Tổng thu CHÍNH THỨC — dùng để báo cáo DNTU, loại các khoản không xuất hoá đơn */
+      if(laNgoaiDoanhThu(loaiCon, lv, p.maKhoan)){ out.thuNgoai += p.soTien; kho[lv].ngoai[loaiCon] = true; }
+      else out.thuChinhThuc += p.soTien;
+    } else out.tongChi += p.soTien;
   });
   return out;
 }
@@ -2123,6 +2153,7 @@ function renderThongKeLinhVuc(){
   const d = lvCompute();
   const n = v => formatNumber(v);
   const khoi = (tieuDe, kho, tong, mau) => {
+    const laThu = tieuDe.startsWith('THU');
     const ds = Object.keys(kho).sort((a,b)=> kho[b].tong - kho[a].tong);
     return `<div class="table-scroll"><table class="grid-table">
       <thead><tr><th colspan="3" style="background:${mau.bg};color:${mau.fg};">${tieuDe}</th></tr>
@@ -2138,13 +2169,22 @@ function renderThongKeLinhVuc(){
             <td>${nhieuCon? `<span style="color:var(--muted);">${mo?'▾':'▸'}</span> `:''}${escapeHtml(lv)}${nhieuCon?` <span class="small muted">(${cons.length} loại)</span>`:''}</td>
             <td style="text-align:right;font-weight:600;">${n(g.tong)}</td>
             <td style="text-align:right;color:var(--muted);">${tong? (g.tong/tong*100).toFixed(1):'0.0'}</td></tr>
-          ${mo ? cons.map(c=>`<tr style="background:#fafbfc;">
-              <td style="padding-left:26px;" class="small">${escapeHtml(c)}</td>
-              <td style="text-align:right;" class="small">${n(g.con[c])}</td>
-              <td style="text-align:right;" class="small muted">${g.tong? (g.con[c]/g.tong*100).toFixed(1):''}</td></tr>`).join('') : ''}`;
+          ${mo ? cons.map(c=>{ const ngoai = laThu && !!(g.ngoai && g.ngoai[c]);
+            return `<tr style="background:${ngoai?'#fdf4f4':'#fafbfc'};">
+              <td style="padding-left:26px;" class="small">${escapeHtml(c)}${ngoai?' <span style="font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:99px;background:#fdeaea;color:var(--danger);">ngoài DT chính thức</span>':''}</td>
+              <td style="text-align:right;" class="small${ngoai?'':''}" ${ngoai?'style="text-align:right;color:var(--danger);"':''}>${n(g.con[c])}</td>
+              <td style="text-align:right;" class="small muted">${g.tong? (g.con[c]/g.tong*100).toFixed(1):''}</td></tr>`; }).join('') : ''}`;
       }).join('') || '<tr><td colspan="3" class="muted">Không có dữ liệu trong kỳ.</td></tr>'}
-      <tr style="background:#eef4f0;font-weight:800;"><td>${tieuDe.startsWith('THU')?'TỔNG THU':'TỔNG CHI'}</td>
+      <tr style="background:#eef4f0;font-weight:800;"><td>${laThu?'TỔNG THU (nội bộ)':'TỔNG CHI'}</td>
         <td style="text-align:right;">${n(tong)}</td><td style="text-align:right;">100</td></tr>
+      ${laThu ? `<tr style="font-weight:700;color:var(--danger);background:#fdf4f4;">
+          <td style="padding-left:14px;">− Khoản không phải doanh thu dịch vụ (Sách · Áo · Thu khác · Lãi NH · Trả lại DDA · Hoàn học phí · chưa phân loại)</td>
+          <td style="text-align:right;">${n(d.thuNgoai)}</td>
+          <td style="text-align:right;">${tong? (d.thuNgoai/tong*100).toFixed(1):'0.0'}</td></tr>
+        <tr style="background:#dcece3;font-weight:800;font-size:14.5px;">
+          <td>TỔNG THU CHÍNH THỨC <span class="small" style="font-weight:400;">— dùng báo cáo DNTU</span></td>
+          <td style="text-align:right;color:var(--primary);">${n(d.thuChinhThuc)}</td>
+          <td style="text-align:right;">${tong? (d.thuChinhThuc/tong*100).toFixed(1):'0.0'}</td></tr>`:''}
       </tbody></table></div>`;
   };
   return `<div class="card">
@@ -2177,7 +2217,12 @@ async function exportLinhVucExcel(){
         ws.addRow(['', c, g.con[c], g.tong? +(g.con[c]/g.tong*100).toFixed(1):0]);
       });
     });
-    ws.addRow([ten.startsWith('THU')?'TỔNG THU':'TỔNG CHI','',tong,100]).font = {bold:true};
+    const laThuX = ten.startsWith('THU');
+    ws.addRow([laThuX?'TỔNG THU (nội bộ)':'TỔNG CHI','',tong,100]).font = {bold:true};
+    if(laThuX){
+      ws.addRow(['− Khoản không phải doanh thu dịch vụ (Sách · Áo · Thu khác · Lãi NH · Trả lại DDA · Hoàn học phí · chưa phân loại)','',d.thuNgoai, tong? +(d.thuNgoai/tong*100).toFixed(1):0]);
+      ws.addRow(['TỔNG THU CHÍNH THỨC — dùng báo cáo DNTU','',d.thuChinhThuc, tong? +(d.thuChinhThuc/tong*100).toFixed(1):0]).font={bold:true,size:12};
+    }
     ws.addRow([]);
   };
   khoi('THU THEO LĨNH VỰC', d.thu, d.tongThu);
@@ -2320,12 +2365,31 @@ function renderHHChuyenMon(){
 }
 /* ===== V2.4.0 — BẢNG TỔNG HỢP TRÍCH NỘP: mỗi phiếu thu một dòng, đủ 4 cột trích nộp/hoa hồng.
    Dùng lại nguyên hàm cnPhatSinh() nên số liệu khớp tuyệt đối với tab Công Nợ. ===== */
-function trichNopRows(){
+/* V2.4.2 — Bản CHỐT loại thêm các khoản Sách / Áo (đồng phục).
+   Nhận diện theo 3 cách:
+     1. Mã nằm trong danh sách loại trừ cố định bên dưới
+     2. Mã bắt đầu bằng SA-
+     3. Tên khoản / lĩnh vực / loại có chữ "sách" · "áo" · "đồng phục"
+   Muốn thêm mã nào thì bổ sung vào MA_LOAI_KHOI_CHOT. */
+const MA_LOAI_KHOI_CHOT = [];   // để trống — Sách/Áo dùng mã SA-* nên app tự nhận
+/* V2.6.0 — HỢP NHẤT: bản CHỐT dùng CHUNG quy tắc với "Tổng thu chính thức" ở bảng
+   Thu theo lĩnh vực, để hai nơi không bao giờ ra số khác nhau. */
+function laSachAo(p){
+  const ma = String(p.maKhoan||'');
+  if(MA_LOAI_KHOI_CHOT.includes(ma)) return true;
+  const dm = danhMucList.find(x=>x.maKhoan===p.maKhoan) || {};
+  return laNgoaiDoanhThu(dm.loai||'', dm.linhVuc||'(chưa phân loại)', ma);
+}
+
+function trichNopRows(chot){
   const {from, to, label} = canDoiGetRange();
   const c = hhCfg();
   const tsPct = (c.tsTyLe * c.tsSoNguoi) / 100;    // 4% × 2 người = 8% tổng chi
+  /* Cả 2 bản đều đã loại điều chuyển nội bộ & bút toán ghi sổ.
+     Bản CHỐT loại thêm Sách / Áo. */
   const rows = phieuList.filter(p=> p.loai==='thu' && p.ngay>=from && p.ngay<=to
-      && !cnLaNoiBo(p) && !laButToan(p))
+      && !cnLaNoiBo(p) && !laButToan(p)
+      && !(chot && laSachAo(p)))
     .sort((a,b)=> (a.ngay||'').localeCompare(b.ngay||''));
   const out = rows.map(p=>{
     const ps = cnPhatSinh(p);                       // DNTU & Quỹ PT — đúng hàm tab Công Nợ dùng
@@ -2340,20 +2404,90 @@ function trichNopRows(){
   });
   const t = {tien:0, dntu:0, quyPT:0, hhTS:0, hhCM:0};
   out.forEach(r=>{ t.tien+=r.tien; t.dntu+=r.dntu; t.quyPT+=r.quyPT; t.hhTS+=r.hhTS; t.hhCM+=r.hhCM; });
-  return {rows:out, tong:t, label, from, to, tsPct};
+  /* V2.6.0 — gom theo LĨNH VỰC để dựng bảng tổng hợp đầu file (phục vụ Biên bản đối soát) */
+  const lv = {};
+  rows.forEach(p=>{
+    const dm = danhMucList.find(x=>x.maKhoan===p.maKhoan) || {};
+    const ten = dm.linhVuc || '(chưa phân loại)';
+    if(!lv[ten]) lv[ten] = {sp:0, tien:0};
+    lv[ten].sp++; lv[ten].tien += p.soTien;
+  });
+  const soLoai = chot ? phieuList.filter(p=> p.loai==='thu' && p.ngay>=from && p.ngay<=to
+      && !cnLaNoiBo(p) && !laButToan(p) && laSachAo(p)).length : 0;
+  return {rows:out, tong:t, label, from, to, tsPct, chot:!!chot, soLoai, lv,
+          quyHoatDong: t.tien - t.dntu - t.quyPT};
 }
-async function exportTrichNopExcel(){
+async function exportTrichNopExcel(chot){
   if(typeof ExcelJS==='undefined'){ showToast('Đang tải thư viện Excel, thử lại sau'); return; }
-  const d = trichNopRows();
+  const d = trichNopRows(chot);
   if(!d.rows.length){ showToast('Không có phiếu thu nào trong kỳ đang chọn'); return; }
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet('Tong hop trich nop');
   ws.columns=[{width:12},{width:30},{width:26},{width:52},{width:16},{width:16},{width:16},{width:16},{width:16},{width:12},{width:22}];
   excelChenLogo(wb, ws, 11);
-  ws.addRow(['SỔ TỔNG HỢP TRÍCH NỘP & HOA HỒNG']).font={bold:true,size:14};
-  ws.addRow([d.label + (cnAsOf? '' : '')]).font={italic:true,size:11};
-  ws.addRow(['Đơn vị tính: Đồng Việt Nam']).font={italic:true,size:10};
+  ws.addRow(['SỔ TỔNG HỢP TRÍCH NỘP & HOA HỒNG' + (d.chot? ' — BẢN CHỐT':'')]).font={bold:true,size:14};
+  ws.addRow([d.label]).font={italic:true,size:11};
+  ws.addRow([d.chot
+    ? `Đơn vị tính: Đồng Việt Nam · Bản CHỐT: đã loại khoản Sách/Áo — ${MA_LOAI_KHOI_CHOT.join(', ')}, SA-* (${d.soLoai} phiếu) — và điều chuyển nội bộ`
+    : 'Đơn vị tính: Đồng Việt Nam · đã loại điều chuyển nội bộ']).font={italic:true,size:10};
   ws.addRow([]);
+  /* ===== BẢNG 1 — DOANH THU THEO LĨNH VỰC ===== */
+  const dsLV = Object.keys(d.lv).sort((a,b)=> d.lv[b].tien - d.lv[a].tien);
+  const dam = r => { r.font={bold:true}; };
+  const vienO = (r,tuCot,denCot) => r.eachCell({includeEmpty:true},(c,i)=>{
+    if(i>=tuCot && i<=denCot) c.border={top:{style:'thin'},bottom:{style:'thin'},left:{style:'thin'},right:{style:'thin'}};
+  });
+  ws.addRow(['1. DOANH THU THEO LĨNH VỰC']).font={bold:true,size:12,color:{argb:'FF1A7A4C'}};
+  const h1 = ws.addRow(['STT','Lĩnh vực','','','Số lượng phiếu thu','Tổng tiền']);
+  h1.font={bold:true};
+  h1.eachCell({includeEmpty:true},(c,i)=>{ if(i<=6){
+    c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFD9E1F2'}};
+    c.alignment={horizontal:'center',vertical:'middle',wrapText:true};
+    c.border={top:{style:'thin'},bottom:{style:'thin'},left:{style:'thin'},right:{style:'thin'}}; }});
+  dsLV.forEach((ten,i)=>{
+    const r = ws.addRow([i+1, ten, '', '', d.lv[ten].sp, d.lv[ten].tien]);
+    r.getCell(5).numFmt='#,##0'; r.getCell(6).numFmt='#,##0';
+    r.getCell(5).alignment={horizontal:'center'}; r.getCell(6).alignment={horizontal:'right'};
+    vienO(r,1,6);
+  });
+  const rT1 = ws.addRow(['','TỔNG CỘNG','','', d.rows.length, d.tong.tien]);
+  dam(rT1); rT1.getCell(5).numFmt='#,##0'; rT1.getCell(6).numFmt='#,##0';
+  rT1.getCell(5).alignment={horizontal:'center'}; rT1.getCell(6).alignment={horizontal:'right'};
+  rT1.eachCell({includeEmpty:true},(c,i)=>{ if(i<=6) c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFEEF4F0'}}; });
+  vienO(rT1,1,6);
+  ws.addRow(['Bằng chữ: ' + soTienBangChu(d.tong.tien)]).font={italic:true};
+  ws.addRow([]);
+
+  /* ===== BẢNG 2 — PHÂN BỔ NGUỒN THU ===== */
+  ws.addRow(['2. PHÂN BỔ NGUỒN THU']).font={bold:true,size:12,color:{argb:'FF1A7A4C'}};
+  const h2 = ws.addRow(['STT','Lĩnh vực','','','','Tổng tiền','Ghi chú']);
+  h2.font={bold:true};
+  h2.eachCell({includeEmpty:true},(c,i)=>{ if(i<=7){
+    c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFD9E1F2'}};
+    c.alignment={horizontal:'center',vertical:'middle',wrapText:true};
+    c.border={top:{style:'thin'},bottom:{style:'thin'},left:{style:'thin'},right:{style:'thin'}}; }});
+  const pb = [
+    ['1','Trích nộp DNTU', d.tong.dntu, 'Quy chế Chi tiêu nội bộ của Trung tâm', true],
+    ['2','Trích quỹ phát triển Trung tâm', d.tong.quyPT, 'Quy chế Chi tiêu nội bộ của Trung tâm', true],
+    ['3','Trích quỹ hoạt động của Trung tâm', d.quyHoatDong, 'Quy chế Chi tiêu nội bộ của Trung tâm', true],
+    ['3.1','Hoa hồng Bộ phận chuyên môn', d.tong.hhCM, 'Nằm trong mục (3)', false],
+    ['3.2','Hoa hồng Tuyển sinh', d.tong.hhTS, 'Nằm trong mục (3)', false]
+  ];
+  pb.forEach(([stt,ten,tien,gc,damDong])=>{
+    const r = ws.addRow([stt, ten, '', '', '', tien, gc]);
+    r.getCell(6).numFmt='#,##0'; r.getCell(6).alignment={horizontal:'right'};
+    if(damDong) r.font={bold:true}; else { r.getCell(2).font={italic:true}; r.getCell(7).font={italic:true,size:10}; }
+    vienO(r,1,7);
+  });
+  const rT2 = ws.addRow(['','TỔNG CỘNG: (1) + (2) + (3)','','','', d.tong.dntu + d.tong.quyPT + d.quyHoatDong, '']);
+  dam(rT2); rT2.getCell(6).numFmt='#,##0'; rT2.getCell(6).alignment={horizontal:'right'};
+  rT2.eachCell({includeEmpty:true},(c,i)=>{ if(i<=7) c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFEEF4F0'}}; });
+  vienO(rT2,1,7);
+  ws.addRow(['Bằng chữ: ' + soTienBangChu(d.tong.dntu + d.tong.quyPT + d.quyHoatDong)]).font={italic:true};
+  ws.addRow(['Ghi chú: mục 3.1 và 3.2 là khoản chi nằm TRONG quỹ hoạt động (mục 3), không cộng thêm vào tổng.']).font={italic:true,size:10,color:{argb:'FF6B7688'}};
+  ws.addRow([]);
+  ws.addRow(['3. CHI TIẾT TỪNG PHIẾU THU']).font={bold:true,size:12,color:{argb:'FF1A7A4C'}};
+
   const H=['NGÀY','SỐ PHIẾU','MÃ KHOẢN','DIỄN GIẢI','SỐ TIỀN PHIẾU',
            `TRÍCH NỘP DNTU (${tyLeConfig.dntu}%)`, `TRÍCH QUỸ PT (${tyLeConfig.quyPT}%)`,
            `HOA HỒNG TUYỂN SINH (${(d.tsPct*100).toFixed(0)}%)`, 'HOA HỒNG BỘ PHẬN CHUYÊN MÔN',
@@ -2386,10 +2520,10 @@ async function exportTrichNopExcel(){
   const buf=await wb.xlsx.writeBuffer();
   const blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
   const url=URL.createObjectURL(blob); const a=document.createElement('a');
-  a.href=url; a.download=`Tong-hop-trich-nop-${d.from}_${d.to}.xlsx`;
+  a.href=url; a.download=`Tong-hop-trich-nop${d.chot?'-CHOT':''}-${d.from}_${d.to}.xlsx`;
   document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
-  logActivity(`Xuất Excel tổng hợp trích nộp (${d.rows.length} dòng)`);
-  showToast(`Đã xuất ${d.rows.length} dòng`);
+  logActivity(`Xuất Excel tổng hợp trích nộp${d.chot?' BẢN CHỐT':''} (${d.rows.length} dòng${d.soLoai?`, đã loại ${d.soLoai} phiếu Sách/Áo`:''})`);
+  showToast(`Đã xuất ${d.rows.length} dòng${d.soLoai?` · loại ${d.soLoai} phiếu Sách/Áo`:''}`);
 }
 
 async function exportTuyenSinhExcel(){
