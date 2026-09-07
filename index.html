@@ -200,7 +200,7 @@
   <div class="app-header">
     <div>
       <h1>💰 Sổ Thu Chi FLIC</h1>
-      <div class="ver">Phiên bản: V2.6.1</div>
+      <div class="ver">Phiên bản: V2.6.2</div>
     </div>
     <div class="row" style="gap:8px;">
       <div class="role-chip" id="roleChip" onclick="doLogout()">—</div>
@@ -3005,6 +3005,18 @@ const QUY_MA = {
 const MA_BUT_TOAN = [QUY_MA.nap];
 function laButToan(p){ return MA_BUT_TOAN.includes(p.maKhoan); }
 
+/* V2.6.2 — SỬA LỖI NGHIÊM TRỌNG: phiếu quỹ phải gắn với KỲ (tháng doanh thu),
+   không phải tháng ghi phiếu. Từ V2.1.1 ngày phiếu mặc định là hôm nay, nên
+   phiếu trích cho tháng 5 lại ghi ngày tháng 9 -> app tưởng tháng 5 chưa trích
+   -> nút vẫn hiện -> trích trùng lần hai.
+   Xác định kỳ theo thứ tự: kyQuy lưu sẵn -> "tháng M/YYYY" trong diễn giải -> tháng của ngày phiếu. */
+function kyCuaPhieuQuy(p){
+  if(p.kyQuy && /^\d{4}-\d{2}$/.test(p.kyQuy)) return p.kyQuy;
+  const m = String(p.dienGiai||'').match(/th[áa]ng\s*(\d{1,2})\s*\/\s*(\d{4})/i);
+  if(m) return `${m[2]}-${String(parseInt(m[1],10)).padStart(2,'0')}`;
+  return (p.ngay||'').slice(0,7);
+}
+
 /* Tổng hợp tài khoản Quỹ phát triển, có chia theo tháng */
 function quyPTCompute(){
   const den = cnMoc();
@@ -3012,7 +3024,7 @@ function quyPTCompute(){
   const thang = {};
   let nap=0, bgd=0, dprr=0;
   rows.forEach(p=>{
-    const k=(p.ngay||'').slice(0,7); if(!k) return;
+    const k = kyCuaPhieuQuy(p); if(!k) return;
     if(!thang[k]) thang[k]={nap:0,bgd:0,dprr:0};
     if(p.maKhoan===QUY_MA.nap){ thang[k].nap+=p.soTien; nap+=p.soTien; }
     else if(p.maKhoan===QUY_MA.chiBGD){ thang[k].bgd+=p.soTien; bgd+=p.soTien; }
@@ -3025,6 +3037,11 @@ function quyPTCompute(){
   return {nap, bgd, dprr, soDu: nap-bgd-dprr, bang};
 }
 /* 15% phải trích của một tháng — dùng cho nút "Nạp quỹ" */
+/* V2.6.2 — đã trích BGĐ cho kỳ này bao nhiêu (dùng để chặn trích trùng) */
+function daTrichBGDThang(thang){
+  return phieuList.filter(p=> p.loai==='chi' && p.maKhoan===QUY_MA.chiBGD && kyCuaPhieuQuy(p)===thang)
+                  .reduce((s,p)=>s+(p.soTien||0), 0);
+}
 function quyPTPhaiTrichThang(thang){
   let tong=0;
   phieuList.forEach(p=>{
@@ -3036,7 +3053,7 @@ function quyPTPhaiTrichThang(thang){
 /* Các tháng đã có nghĩa vụ 15% nhưng CHƯA nạp quỹ */
 function quyPTThangChuaNap(){
   const daNap={};
-  phieuList.forEach(p=>{ if(p.loai==='chi' && p.maKhoan===QUY_MA.nap) daNap[(p.ngay||'').slice(0,7)]=true; });
+  phieuList.forEach(p=>{ if(p.loai==='chi' && p.maKhoan===QUY_MA.nap) daNap[kyCuaPhieuQuy(p)]=true; });
   const set=new Set();
   phieuList.forEach(p=>{ if(p.loai==='thu' && cnPhatSinh(p).quyPT>0) set.add((p.ngay||'').slice(0,7)); });
   return [...set].sort().filter(k=>!daNap[k]);
@@ -3046,9 +3063,9 @@ function quyPTThangChuaTrichBGD(){
   const daNap={}, daTrich={};
   phieuList.forEach(p=>{
     if(p.loai!=='chi') return;
-    const k=(p.ngay||'').slice(0,7);
+    const k = kyCuaPhieuQuy(p);
     if(p.maKhoan===QUY_MA.nap) daNap[k]=(daNap[k]||0)+p.soTien;
-    if(p.maKhoan===QUY_MA.chiBGD) daTrich[k]=true;
+    if(p.maKhoan===QUY_MA.chiBGD) daTrich[k]=(daTrich[k]||0)+p.soTien;
   });
   return Object.keys(daNap).sort().filter(k=>!daTrich[k]).map(k=>({thang:k, nap:daNap[k], bgd:Math.round(daNap[k]/2)}));
 }
@@ -4161,6 +4178,23 @@ function renderSoQuyPhatTrien(){
         <td style="text-align:right;">${n(q.dprr)}</td>
         <td style="text-align:right;color:${q.soDu<0?'var(--danger)':'#0d7490'};font-size:15px;">${n(q.soDu)}</td></tr>
       </tbody></table></div>
+    ${(()=>{ const xau = q.bang.filter(r=> r.bgd > r.nap*0.5 + 1);
+      if(!xau.length) return '';
+      return `<div class="card" style="margin-top:10px;border:2px solid var(--danger);background:#fdf4f4;">
+        <div style="font-weight:800;color:var(--danger);">⚠ CẢNH BÁO TRÍCH TRÙNG — ${xau.length} kỳ trích vượt mức 7,5%</div>
+        <div class="hint" style="margin:6px 0;">Mỗi kỳ chỉ được trích tối đa 50% số đã nạp quỹ. Các kỳ dưới đây vượt mức, nhiều khả năng đã bấm Bước 2 hai lần.</div>
+        <div class="table-scroll"><table class="grid-table">
+          <thead><tr><th>Kỳ</th><th style="text-align:right;">Đã nạp</th><th style="text-align:right;">Được trích tối đa</th>
+            <th style="text-align:right;">Thực đã trích</th><th style="text-align:right;">Trích thừa</th></tr></thead>
+          <tbody>${xau.map(r=>`<tr>
+            <td><b>${tenT(r.thang)}</b></td>
+            <td style="text-align:right;">${n(r.nap)}</td>
+            <td style="text-align:right;">${n(r.nap*0.5)}</td>
+            <td style="text-align:right;color:var(--danger);font-weight:700;">${n(r.bgd)}</td>
+            <td style="text-align:right;color:var(--danger);font-weight:800;">${n(r.bgd - r.nap*0.5)}</td></tr>`).join('')}
+          </tbody></table></div>
+        <div class="hint" style="margin-top:8px;">Cách sửa: tab <b>Phiếu Chi</b> → ô tìm kiếm gõ <code>CP-QUY-BGD</code> → xoá các phiếu thừa.</div>
+      </div>`; })()}
     ${q.soDu<0 ? '<div class="hint" style="color:var(--danger);margin-top:8px;">⚠ Số dư quỹ đang ÂM — đã trích cho BGĐ nhiều hơn số đã nạp.</div>':''}
   </div>`;
 }
@@ -4240,7 +4274,11 @@ function moXacNhanQuy(buoc, thang){
 
   /* ===== BƯỚC 2 — chi 7,5% cho Ban giám đốc, chia đôi, khấu trừ 10% TNCN ===== */
   const item = quyPTThangChuaTrichBGD().find(x=>x.thang===thang);
-  if(!item){ showToast('Tháng này chưa nạp quỹ hoặc đã trích rồi'); return; }
+  if(!item){ showToast('Kỳ này chưa nạp quỹ hoặc đã trích rồi'); return; }
+  const daTrich = daTrichBGDThang(thang);
+  if(daTrich > 0 && !window.confirm(
+      `Kỳ ${tenT} ĐÃ trích cho Ban giám đốc ${formatNumber(daTrich)}đ rồi.\n\n`+
+      `Tạo thêm phiếu nữa sẽ thành TRÍCH TRÙNG. Vẫn tiếp tục?`)) return;
   if(!danhMucList.some(d=>d.maKhoan===QUY_MA.chiBGD)){ showToast('Hãy bấm "Tạo mã khoản" trước'); return; }
   const tongBGD = Math.round(item.nap * 0.5);          // 7,5% doanh thu = 50% quỹ tháng
   const goiY = quyLayTenBGD();
@@ -4340,6 +4378,7 @@ async function chotXacNhanQuy(){
         hocVien:'', nguoiNop:'', ngayThi:'', diaChi:'', cccd:'', mst:'',
         soTien, hinhThuc:'CK', nganHang:'',
         ghiChu:'Bút toán ghi sổ — tiền vẫn nằm trong tài khoản Trung tâm' + (ghiChuThem? ' · '+ghiChuThem : ''),
+        kyQuy: quyXacNhan.thang,
         soPhieu:'', createdAt: Date.now(), createdBy: currentUser?currentUser.username:''
       });
       logActivity(`Nạp Quỹ phát triển ${tenT}: ${formatNumber(soTien)}đ`);
@@ -4373,6 +4412,7 @@ async function chotXacNhanQuy(){
         soTien: ng.nhan, hinhThuc:'CK', nganHang:'',
         ghiChu:`Trước thuế ${formatNumber(ng.gop)}đ − TNCN ${(+tyLeConfig.tncnTyLe||10)}% ${formatNumber(ng.thue)}đ = thực nhận ${formatNumber(ng.nhan)}đ`
                + (ghiChuThem? ' · '+ghiChuThem : ''),
+        kyQuy: quyXacNhan.thang,
         soPhieu: sinhSoPhieu('chi', ngay), createdAt: Date.now(), createdBy: currentUser?currentUser.username:''
       });
     }
