@@ -200,7 +200,7 @@
   <div class="app-header">
     <div>
       <h1>💰 Sổ Thu Chi FLIC</h1>
-      <div class="ver">Phiên bản: V2.6.3</div>
+      <div class="ver">Phiên bản: V2.6.5</div>
     </div>
     <div class="row" style="gap:8px;">
       <div class="role-chip" id="roleChip" onclick="doLogout()">—</div>
@@ -3038,6 +3038,24 @@ function quyPTCompute(){
 }
 /* 15% phải trích của một tháng — dùng cho nút "Nạp quỹ" */
 /* V2.6.2 — đã trích BGĐ cho kỳ này bao nhiêu (dùng để chặn trích trùng) */
+/* V2.6.5 — anh tự đánh dấu trạng thái trích của từng kỳ, ghi đè cách app tự đoán.
+   Cần thiết khi trích DỒN nhiều kỳ trong một phiếu: app chỉ gán được vào một kỳ,
+   nên anh đánh dấu 'da' cho các kỳ đã xong và 'chua' cho kỳ bị gán nhầm.
+   Lưu trong cấu hình chung, mọi máy thấy như nhau. */
+function kyTrichOverride(){ return Object.assign({}, tyLeConfig.kyTrichBGD || {}); }
+async function datTrangThaiKy(thang, tt){   // tt = 'da' | 'chua' | '' (bỏ đánh dấu)
+  const m = kyTrichOverride();
+  if(tt) m[thang] = tt; else delete m[thang];
+  try{
+    await db.collection('flic_settings').doc('tyLeTrichNop').set(
+      Object.assign({}, tyLeConfig, {kyTrichBGD: m}));
+    logActivity(`Đánh dấu kỳ ${thang}: ${tt==='da'?'ĐÃ trích BGĐ':tt==='chua'?'CHƯA trích BGĐ':'bỏ đánh dấu'}`);
+    showToast(tt==='da'?'Đã đánh dấu: kỳ này đã trích':tt==='chua'?'Đã đánh dấu: kỳ này chưa trích':'Đã bỏ đánh dấu');
+  }catch(e){ fsErr(e); }
+}
+let quyHienKyDaTrich = false;
+function toggleHienKyDaTrich(){ quyHienKyDaTrich = !quyHienKyDaTrich; renderCanDoiTienTab(); }
+
 function daTrichBGDThang(thang){
   return phieuList.filter(p=> p.loai==='chi' && p.maKhoan===QUY_MA.chiBGD && kyCuaPhieuQuy(p)===thang)
                   .reduce((s,p)=>s+(p.soTien||0), 0);
@@ -3066,6 +3084,12 @@ function quyPTThangChuaTrichBGD(){
     const k = kyCuaPhieuQuy(p);
     if(p.maKhoan===QUY_MA.nap) daNap[k]=(daNap[k]||0)+p.soTien;
     if(p.maKhoan===QUY_MA.chiBGD) daTrich[k]=(daTrich[k]||0)+p.soTien;
+  });
+  /* Ghi đè theo đánh dấu tay của anh */
+  const ov = kyTrichOverride();
+  Object.keys(ov).forEach(k=>{
+    if(ov[k]==='da'  && !daTrich[k]) daTrich[k] = -1;   // -1 = đánh dấu tay
+    if(ov[k]==='chua') daTrich[k] = 0;                  // ép về chưa trích
   });
   /* V2.6.3 — trả về MỌI kỳ đã nạp quỹ, kèm số đã trích. Không lọc bỏ kỳ đã trích nữa,
      vì phiếu lập tay có thể gắn nhầm kỳ khiến nút biến mất oan. */
@@ -4157,14 +4181,27 @@ function renderSoQuyPhatTrien(){
       return `<div class="card" style="margin:10px 0;border:2px solid #6b46c1;background:#f8f5fd;">
       <div style="font-weight:800;color:#6b46c1;">BƯỚC 2 · Trích 7,5% cho Ban giám đốc</div>
       <div class="hint" style="margin-bottom:8px;">Chi thật — tiền chuyển ra tài khoản Ban giám đốc, tồn quỹ giảm. Chỉ hiện tháng đã nạp quỹ ở Bước 1.</div>
-      ${ds.length ? `<div class="btn-row" style="flex-wrap:wrap;">
-          ${ds.map(x=> x.daTrich>0
-            ? `<button class="btn btn-outline btn-sm" style="opacity:.55;" onclick="moXacNhanQuy('bgd','${x.thang}')">✓ ${tenT(x.thang)} — đã trích ${n(x.daTrich)}đ</button>`
-            : `<button class="btn btn-sm" style="background:#6b46c1;color:#fff;border-color:#6b46c1;" onclick="moXacNhanQuy('bgd','${x.thang}')">💜 ${tenT(x.thang)} — ${n(x.bgd)}đ</button>`
-          ).join('')}
-        </div>
-        <div class="hint" style="margin-top:6px;">Nút mờ là kỳ đã trích — vẫn bấm được nếu cần trích bù, app sẽ hỏi lại trước khi tạo phiếu.</div>`
-        : '<div class="hint" style="color:var(--ok);">Chưa có kỳ nào nạp quỹ.</div>'}
+      ${(()=>{
+        const chua = ds.filter(x=> !x.daTrich);
+        const roi  = ds.filter(x=> x.daTrich);
+        return `
+        ${chua.length ? `<div class="btn-row" style="flex-wrap:wrap;">
+            ${chua.map(x=>`<div style="display:inline-flex;align-items:center;gap:4px;">
+              <button class="btn btn-sm" style="background:#6b46c1;color:#fff;border-color:#6b46c1;" onclick="moXacNhanQuy('bgd','${x.thang}')">💜 ${tenT(x.thang)} — ${n(x.bgd)}đ</button>
+              <button class="btn btn-outline btn-sm" style="padding:6px 9px;" title="Kỳ này đã trích rồi bằng phiếu khác — đánh dấu để ẩn nút" onclick="datTrangThaiKy('${x.thang}','da')">✓</button>
+            </div>`).join('')}
+          </div>
+          <div class="hint" style="margin-top:6px;">Nếu kỳ nào đã trích rồi bằng phiếu lập tay (trích dồn nhiều tháng), bấm nút <b>✓</b> bên cạnh để ẩn nút đó đi.</div>`
+          : '<div class="hint" style="color:var(--ok);">✓ Đã trích cho Ban giám đốc đủ mọi kỳ đã nạp quỹ.</div>'}
+        ${roi.length ? `<div class="hint" style="margin-top:8px;">
+            <a href="javascript:void(0)" onclick="toggleHienKyDaTrich()" style="color:var(--primary);font-weight:700;text-decoration:none;">
+              ${quyHienKyDaTrich?'▾':'▸'} ${roi.length} kỳ đã trích — bấm để ${quyHienKyDaTrich?'ẩn':'xem'}</a></div>
+          ${quyHienKyDaTrich ? `<div class="btn-row" style="flex-wrap:wrap;margin-top:6px;">
+            ${roi.map(x=>`<div style="display:inline-flex;align-items:center;gap:4px;">
+              <button class="btn btn-outline btn-sm" style="opacity:.6;" onclick="moXacNhanQuy('bgd','${x.thang}')">✓ ${tenT(x.thang)}${x.daTrich>0?' — '+n(x.daTrich)+'đ':' — đánh dấu tay'}</button>
+              <button class="btn btn-outline btn-sm" style="padding:6px 9px;" title="Kỳ này thật ra CHƯA trích — hiện lại nút" onclick="datTrangThaiKy('${x.thang}','chua')">↩️</button>
+            </div>`).join('')}</div>`:''}`:''}`;
+      })()}
     </div>`; })()}
     <div class="table-scroll"><table class="grid-table">
       <thead><tr><th>Tháng</th><th style="text-align:right;">Nạp vào quỹ 15%</th>
