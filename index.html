@@ -200,7 +200,7 @@
   <div class="app-header">
     <div>
       <h1>💰 Sổ Thu Chi FLIC</h1>
-      <div class="ver">Phiên bản: V2.6.2</div>
+      <div class="ver">Phiên bản: V2.6.3</div>
     </div>
     <div class="row" style="gap:8px;">
       <div class="role-chip" id="roleChip" onclick="doLogout()">—</div>
@@ -3067,7 +3067,10 @@ function quyPTThangChuaTrichBGD(){
     if(p.maKhoan===QUY_MA.nap) daNap[k]=(daNap[k]||0)+p.soTien;
     if(p.maKhoan===QUY_MA.chiBGD) daTrich[k]=(daTrich[k]||0)+p.soTien;
   });
-  return Object.keys(daNap).sort().filter(k=>!daTrich[k]).map(k=>({thang:k, nap:daNap[k], bgd:Math.round(daNap[k]/2)}));
+  /* V2.6.3 — trả về MỌI kỳ đã nạp quỹ, kèm số đã trích. Không lọc bỏ kỳ đã trích nữa,
+     vì phiếu lập tay có thể gắn nhầm kỳ khiến nút biến mất oan. */
+  return Object.keys(daNap).sort()
+    .map(k=>({thang:k, nap:daNap[k], bgd:Math.round(daNap[k]/2), daTrich: daTrich[k]||0}));
 }
 const CN_NHOM_TC = [
   {key:'LUONG_NV', label:'Lương nhân viên'},
@@ -4155,9 +4158,13 @@ function renderSoQuyPhatTrien(){
       <div style="font-weight:800;color:#6b46c1;">BƯỚC 2 · Trích 7,5% cho Ban giám đốc</div>
       <div class="hint" style="margin-bottom:8px;">Chi thật — tiền chuyển ra tài khoản Ban giám đốc, tồn quỹ giảm. Chỉ hiện tháng đã nạp quỹ ở Bước 1.</div>
       ${ds.length ? `<div class="btn-row" style="flex-wrap:wrap;">
-          ${ds.map(x=>`<button class="btn btn-sm" style="background:#6b46c1;color:#fff;border-color:#6b46c1;" onclick="moXacNhanQuy('bgd','${x.thang}')">💜 ${tenT(x.thang)} — ${n(x.bgd)}đ</button>`).join('')}
-        </div>`
-        : '<div class="hint" style="color:var(--ok);">✓ Đã trích cho Ban giám đốc đủ mọi tháng đã nạp quỹ.</div>'}
+          ${ds.map(x=> x.daTrich>0
+            ? `<button class="btn btn-outline btn-sm" style="opacity:.55;" onclick="moXacNhanQuy('bgd','${x.thang}')">✓ ${tenT(x.thang)} — đã trích ${n(x.daTrich)}đ</button>`
+            : `<button class="btn btn-sm" style="background:#6b46c1;color:#fff;border-color:#6b46c1;" onclick="moXacNhanQuy('bgd','${x.thang}')">💜 ${tenT(x.thang)} — ${n(x.bgd)}đ</button>`
+          ).join('')}
+        </div>
+        <div class="hint" style="margin-top:6px;">Nút mờ là kỳ đã trích — vẫn bấm được nếu cần trích bù, app sẽ hỏi lại trước khi tạo phiếu.</div>`
+        : '<div class="hint" style="color:var(--ok);">Chưa có kỳ nào nạp quỹ.</div>'}
     </div>`; })()}
     <div class="table-scroll"><table class="grid-table">
       <thead><tr><th>Tháng</th><th style="text-align:right;">Nạp vào quỹ 15%</th>
@@ -4178,7 +4185,16 @@ function renderSoQuyPhatTrien(){
         <td style="text-align:right;">${n(q.dprr)}</td>
         <td style="text-align:right;color:${q.soDu<0?'var(--danger)':'#0d7490'};font-size:15px;">${n(q.soDu)}</td></tr>
       </tbody></table></div>
-    ${(()=>{ const xau = q.bang.filter(r=> r.bgd > r.nap*0.5 + 1);
+    ${(()=>{ /* V2.6.3 — xét trên TỔNG thay vì từng kỳ. Phiếu lập tay có thể gộp nhiều kỳ
+         nên so từng kỳ sẽ báo động giả. */
+      const toiDa = q.nap * 0.5, thua = q.bgd - toiDa;
+      if(thua <= 1) return `<div class="hint" style="color:var(--ok);margin-top:8px;">✓ Đã trích ${n(q.bgd)}đ / tối đa ${n(toiDa)}đ (50% quỹ) — còn được trích <b>${n(toiDa - q.bgd)}đ</b>.</div>`;
+      return `<div class="card" style="margin-top:10px;border:2px solid var(--danger);background:#fdf4f4;">
+        <div style="font-weight:800;color:var(--danger);">⚠ TRÍCH VƯỢT MỨC ${n(thua)}đ</div>
+        <div class="hint" style="margin:6px 0;">Tổng trích cho Ban giám đốc <b>${n(q.bgd)}đ</b> vượt mức tối đa <b>${n(toiDa)}đ</b> (50% của ${n(q.nap)}đ đã nạp quỹ). Nhiều khả năng bấm Bước 2 hai lần cho cùng một kỳ.</div>
+        <div class="hint">Cách sửa: tab <b>Phiếu Chi</b> → ô tìm kiếm gõ <code>CP-QUY-BGD</code> → xoá phiếu trùng.</div>
+      </div>`; })()}
+    ${(()=>{ const xau = [];
       if(!xau.length) return '';
       return `<div class="card" style="margin-top:10px;border:2px solid var(--danger);background:#fdf4f4;">
         <div style="font-weight:800;color:var(--danger);">⚠ CẢNH BÁO TRÍCH TRÙNG — ${xau.length} kỳ trích vượt mức 7,5%</div>
