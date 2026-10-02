@@ -200,7 +200,7 @@
   <div class="app-header">
     <div>
       <h1>💰 Sổ Thu Chi FLIC</h1>
-      <div class="ver">Phiên bản: V2.6.6</div>
+      <div class="ver">Phiên bản: V2.6.7</div>
     </div>
     <div class="row" style="gap:8px;">
       <div class="role-chip" id="roleChip" onclick="doLogout()">—</div>
@@ -261,6 +261,11 @@
         </div>
         <div class="perm-grid" id="newUserPerms"></div>
         <button class="btn btn-primary btn-block" onclick="themTaiKhoan()">+ Tạo tài khoản</button>
+      </div>
+      <div class="card hidden" id="permAuditCard">
+        <div class="card-title">🔐 Bảng kiểm tra quyền — toàn bộ tài khoản</div>
+        <div class="hint">Soát nhanh ai đang có quyền gì. Cột <b>Quản lý tài khoản</b> tô đỏ là người xem và sửa được tài khoản của người khác.</div>
+        <div id="permAudit" style="margin-top:8px;"></div>
       </div>
       <div class="card hidden" id="userListCard"><div id="userList"></div></div>
 
@@ -552,6 +557,7 @@ function applyTabVisibility(){
   });
   /* V2.6.6 — SỬA LỖI BẢO MẬT: thẻ danh sách tài khoản trước đây KHÔNG bị khoá quyền,
      nên mọi người đều thấy và bấm được nút Sửa/Xoá của tài khoản người khác. */
+  document.getElementById('permAuditCard').classList.toggle('hidden', !hasPerm('quanLyTaiKhoan'));
   document.getElementById('userListCard').classList.toggle('hidden', !hasPerm('quanLyTaiKhoan'));
   document.getElementById('userMgmtCard').classList.toggle('hidden', !hasPerm('quanLyTaiKhoan'));
   document.getElementById('activityLogCard').classList.toggle('hidden', !hasPerm('quanLyTaiKhoan'));
@@ -574,7 +580,7 @@ function switchTab(tab){
   if(tab==='canDoiTien') renderCanDoiTienTab();
   if(tab==='canDoi') renderCanDoiTab();
   if(tab==='danhMuc') renderDanhMucTab();
-  if(tab==='taiKhoan'){ renderCurAccountBox(); buildNewUserPermCheckboxes(); renderUserList(); renderActivityLog(); }
+  if(tab==='taiKhoan'){ renderCurAccountBox(); buildNewUserPermCheckboxes(); renderPermAudit(); renderUserList(); renderActivityLog(); }
 }
 function tabPermKey(tab){
   return {phieuThu:'phieuThu', phieuChi:'phieuChi', soQuy:'xemSoQuy', congNo:'xemCongNo', canDoiTien:'xemCanDoiTien', canDoi:'xemCanDoi', danhMuc:'quanLyDanhMuc', taiKhoan:null}[tab];
@@ -585,7 +591,7 @@ function listenAll(){
   db.collection('flic_users').onSnapshot(snap=>{
     userList = snap.docs.map(d=>({id:d.id, ...d.data()}));
     checkLoginGate();
-    if(activeTab==='taiKhoan') renderUserList();
+    if(activeTab==='taiKhoan'){ renderPermAudit(); renderUserList(); }
   }, fsErr);
 
   db.collection('flic_danhmuc').orderBy('stt').onSnapshot(snap=>{
@@ -2955,6 +2961,30 @@ function togglePerm(id, key, checked){
   const quyen = Object.assign({}, u.quyen, {[key]:checked});
   db.collection('flic_users').doc(id).update({quyen}).catch(fsErr);
 }
+/* V2.6.7 — bảng soát quyền: xem nhanh toàn bộ tài khoản và quyền của từng người */
+function renderPermAudit(){
+  const el = document.getElementById('permAudit');
+  if(!el) return;
+  if(!hasPerm('quanLyTaiKhoan')){ el.innerHTML=''; return; }
+  const ds = userList.slice().sort((a,b)=> (a.displayName||'').localeCompare(b.displayName||''));
+  const soQL = ds.filter(u=> (u.quyen||{}).quanLyTaiKhoan).length;
+  const o = (co, nguyHiem) => co
+    ? `<td style="text-align:center;background:${nguyHiem?'#fdeaea':'#eaf6ef'};color:${nguyHiem?'var(--danger)':'var(--ok)'};font-weight:800;">✓</td>`
+    : '<td style="text-align:center;color:#c7ccd4;">—</td>';
+  return el.innerHTML = `
+    <div class="hint" style="margin-bottom:6px;">Tổng <b>${ds.length}</b> tài khoản · <b style="color:var(--danger);">${soQL}</b> tài khoản có quyền Quản lý tài khoản.</div>
+    <div class="table-scroll"><table class="grid-table">
+      <thead><tr><th>Tài khoản</th>
+        ${PERM_LIST.map(p=>`<th style="text-align:center;font-size:11px;${p.key==='quanLyTaiKhoan'?'background:#fdeaea;color:var(--danger);':''}">${p.label}</th>`).join('')}
+      </tr></thead>
+      <tbody>${ds.map(u=>{ const q=u.quyen||{};
+        return `<tr>
+          <td><b>${escapeHtml(u.displayName||'')}</b> <span class="small muted">@${escapeHtml(u.username||'')}</span></td>
+          ${PERM_LIST.map(p=> o(!!q[p.key], p.key==='quanLyTaiKhoan')).join('')}
+        </tr>`; }).join('')}
+      </tbody></table></div>`;
+}
+
 function renderUserList(){
   const el = document.getElementById('userList');
   if(!el) return;
