@@ -200,7 +200,7 @@
   <div class="app-header">
     <div>
       <h1>💰 Sổ Thu Chi FLIC</h1>
-      <div class="ver">Phiên bản: V2.6.5</div>
+      <div class="ver">Phiên bản: V2.6.6</div>
     </div>
     <div class="row" style="gap:8px;">
       <div class="role-chip" id="roleChip" onclick="doLogout()">—</div>
@@ -262,7 +262,7 @@
         <div class="perm-grid" id="newUserPerms"></div>
         <button class="btn btn-primary btn-block" onclick="themTaiKhoan()">+ Tạo tài khoản</button>
       </div>
-      <div class="card"><div id="userList"></div></div>
+      <div class="card hidden" id="userListCard"><div id="userList"></div></div>
 
       <div class="card" id="backupCard">
         <div class="card-title">💾 Sao lưu / Phục hồi / Xoá dữ liệu</div>
@@ -550,6 +550,9 @@ function applyTabVisibility(){
     if(tab==='taiKhoan') ok = true;
     btn.classList.toggle('hidden', !ok);
   });
+  /* V2.6.6 — SỬA LỖI BẢO MẬT: thẻ danh sách tài khoản trước đây KHÔNG bị khoá quyền,
+     nên mọi người đều thấy và bấm được nút Sửa/Xoá của tài khoản người khác. */
+  document.getElementById('userListCard').classList.toggle('hidden', !hasPerm('quanLyTaiKhoan'));
   document.getElementById('userMgmtCard').classList.toggle('hidden', !hasPerm('quanLyTaiKhoan'));
   document.getElementById('activityLogCard').classList.toggle('hidden', !hasPerm('quanLyTaiKhoan'));
   document.getElementById('backupCard').classList.toggle('hidden', !hasPerm('quanLyTaiKhoan'));
@@ -2898,7 +2901,14 @@ function doiMatKhauCuaToi(){
     showToast('Đã đổi mật khẩu');
   }).catch(fsErr);
 }
+/* V2.6.6 — chặn ở lõi, không chỉ ẩn nút: người không có quyền gọi thẳng hàm cũng không chạy được */
+function chanKhongCoQuyenTK(){
+  if(hasPerm('quanLyTaiKhoan')) return false;
+  showToast('Bạn không có quyền quản lý tài khoản');
+  return true;
+}
 function themTaiKhoan(){
+  if(chanKhongCoQuyenTK()) return;
   const displayName = document.getElementById('newUserDisplayName').value.trim();
   const username = document.getElementById('newUserUsername').value.trim();
   const password = document.getElementById('newUserPassword').value;
@@ -2914,9 +2924,10 @@ function themTaiKhoan(){
     showToast('Đã tạo tài khoản '+displayName);
   }).catch(fsErr);
 }
-function editUser(id){ editingUserId = id; renderUserList(); }
+function editUser(id){ if(chanKhongCoQuyenTK()) return; editingUserId = id; renderUserList(); }
 function cancelEditUser(){ editingUserId = null; renderUserList(); }
 function saveEditUser(id){
+  if(chanKhongCoQuyenTK()) return;
   const displayName = document.getElementById('eUserDisplayName_'+id).value.trim();
   const username = document.getElementById('eUserUsername_'+id).value.trim();
   const password = document.getElementById('eUserPassword_'+id).value;
@@ -2930,11 +2941,16 @@ function saveEditUser(id){
   }).catch(fsErr);
 }
 function xoaUser(id, btn){
+  if(chanKhongCoQuyenTK()) return;
+  if(currentUser && currentUser.id===id){ showToast('Không thể xoá chính tài khoản đang đăng nhập'); return; }
   if(!requestConfirm('user:'+id, btn)) return;
   const u = userList.find(x=>x.id===id);
   db.collection('flic_users').doc(id).delete().then(()=>{ logActivity(`Xoá tài khoản ${u?u.displayName:id}`); showToast('Đã xoá tài khoản'); }).catch(fsErr);
 }
 function togglePerm(id, key, checked){
+  if(chanKhongCoQuyenTK()){ renderUserList(); return; }
+  if(currentUser && currentUser.id===id && key==='quanLyTaiKhoan' && !checked){
+    showToast('Không thể tự bỏ quyền quản lý tài khoản của chính mình'); renderUserList(); return; }
   const u = userList.find(x=>x.id===id);
   const quyen = Object.assign({}, u.quyen, {[key]:checked});
   db.collection('flic_users').doc(id).update({quyen}).catch(fsErr);
@@ -2942,6 +2958,7 @@ function togglePerm(id, key, checked){
 function renderUserList(){
   const el = document.getElementById('userList');
   if(!el) return;
+  if(!hasPerm('quanLyTaiKhoan')){ el.innerHTML=''; return; }
   el.innerHTML = userList.map(u=>{
     const q = u.quyen||{};
     const permSummary = PERM_LIST.filter(p=>q[p.key]).map(p=>p.label).join(', ') || '—';
