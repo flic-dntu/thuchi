@@ -1,4 +1,35 @@
 <!DOCTYPE html>
+<!--
+================================================================================
+  SỔ THU CHI FLIC  —  V2.7.0   (10/10/2026)
+================================================================================
+  THAY ĐỔI DUY NHẤT SO VỚI V2.6.7:
+    • Đổi firebaseConfig sang Firebase project RIÊNG của FLIC: "thuchiflic"
+      (trước đây dùng chung project "so-thu-chi-9f0b5" với 5 app khác).
+    • Cập nhật 2 dòng ghi chú cũ đã không còn đúng.
+    • KHÔNG đụng tới bất kỳ logic kế toán nào: công thức trích DNTU / Quỹ PT 15%
+      / TNCN (chia 9) / hoa hồng tuyển sinh & chuyên môn / quy tắc làm tròn từng
+      phiếu / toàn bộ hàm xuất Excel đều giữ nguyên 100%.
+
+  DỮ LIỆU:
+    Copy ngày 10/10/2026 từ so-thu-chi-9f0b5 sang thuchiflic.
+    Đối chiếu bằng vân tay SHA-256: KHỚP TỪNG KÝ TỰ.
+      flic_activitylog  2.648   flic_chidinhky      4
+      flic_danhmuc        103   flic_phieu      2.463
+      flic_settings         3   flic_users          9
+      ─────────────────────────────────────────────
+      Tổng 5.230 document | Thu 9.379.929.561đ | Chi 8.927.311.876đ
+
+  ĐƯỜNG LUI: up lại So-Thu-Chi-FLIC-V2.6.7.html là app quay về project cũ,
+  dữ liệu cũ vẫn còn nguyên (lưu ý: phiếu lập trong lúc chạy V2.7.0 nằm ở
+  project mới, phải copy ngược nếu muốn thấy lại).
+
+  CÒN LẠI (chưa làm, theo lộ trình bảo mật):
+    GĐ1  Firebase Auth + băm mật khẩu (hiện flic_users còn lưu mật khẩu chữ thô)
+    GĐ2  Firestore Rules phân quyền máy chủ
+    GĐ3  Xác thực 2 bước (TOTP), App Check, giới hạn API key theo tên miền
+================================================================================
+-->
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
@@ -200,7 +231,7 @@
   <div class="app-header">
     <div>
       <h1>💰 Sổ Thu Chi FLIC</h1>
-      <div class="ver">Phiên bản: V2.6.7</div>
+      <div class="ver">Phiên bản: V2.7.0</div>
     </div>
     <div class="row" style="gap:8px;">
       <div class="role-chip" id="roleChip" onclick="doLogout()">—</div>
@@ -341,15 +372,16 @@
 <script>
 
 const firebaseConfig = {
-  apiKey: "AIzaSyAL4TaYl8KiktkNkburY94jsxSjyyGh2xc",
-  authDomain: "so-thu-chi-9f0b5.firebaseapp.com",
-  projectId: "so-thu-chi-9f0b5",
-  storageBucket: "so-thu-chi-9f0b5.firebasestorage.app",
-  messagingSenderId: "900824130297",
-  appId: "1:900824130297:web:27cff5c2f775cf2bd93828"
+  apiKey: "AIzaSyDiBlccX9aGEKDJOxopydbVWA2_RgyJz0k",
+  authDomain: "thuchiflic.firebaseapp.com",
+  projectId: "thuchiflic",
+  storageBucket: "thuchiflic.firebasestorage.app",
+  messagingSenderId: "524465798844",
+  appId: "1:524465798844:web:641da21ffab7d96602dab9"
 };
-// LƯU Ý: đang dùng chung Firebase project với các app khác của bạn (an toàn vì mỗi app dùng tiền tố collection riêng: flic_...).
-// Nếu muốn tách riêng hẳn 1 Firebase project cho FLIC (không chung với app thủy sản), báo tôi để đổi config này.
+// V2.7.0 — FLIC đã có Firebase project RIÊNG (thuchiflic), không còn dùng chung với 5 app khác.
+// Dữ liệu được copy nguyên vẹn từ so-thu-chi-9f0b5 ngày 10/10/2026, đối chiếu khớp từng ký tự
+// (6 collection / 5.230 document). Project cũ vẫn giữ bản flic_* làm dự phòng.
 let db;
 const CUR_USER_KEY = 'flic_currentUser';
 
