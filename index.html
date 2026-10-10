@@ -1,33 +1,57 @@
 <!DOCTYPE html>
 <!--
 ================================================================================
-  SỔ THU CHI FLIC  —  V2.7.0   (10/10/2026)
+  SỔ THU CHI FLIC  —  V2.8.0   (10/10/2026)   ·   GĐ1 BẢO MẬT
 ================================================================================
-  THAY ĐỔI DUY NHẤT SO VỚI V2.6.7:
-    • Đổi firebaseConfig sang Firebase project RIÊNG của FLIC: "thuchiflic"
-      (trước đây dùng chung project "so-thu-chi-9f0b5" với 5 app khác).
-    • Cập nhật 2 dòng ghi chú cũ đã không còn đúng.
-    • KHÔNG đụng tới bất kỳ logic kế toán nào: công thức trích DNTU / Quỹ PT 15%
-      / TNCN (chia 9) / hoa hồng tuyển sinh & chuyên môn / quy tắc làm tròn từng
-      phiếu / toàn bộ hàm xuất Excel đều giữ nguyên 100%.
+  Nền: V2.7.0 (Firebase project riêng thuchiflic).
+  Bản này CHỈ sửa phần ĐĂNG NHẬP & TÀI KHOẢN. Toàn bộ logic kế toán giữ nguyên
+  100%: trích DNTU / Quỹ PT 15% / TNCN (chia 9) / hoa hồng tuyển sinh & chuyên
+  môn / làm tròn từng phiếu / mọi hàm xuất Excel — không chạm một dòng nào.
 
-  DỮ LIỆU:
-    Copy ngày 10/10/2026 từ so-thu-chi-9f0b5 sang thuchiflic.
-    Đối chiếu bằng vân tay SHA-256: KHỚP TỪNG KÝ TỰ.
-      flic_activitylog  2.648   flic_chidinhky      4
-      flic_danhmuc        103   flic_phieu      2.463
-      flic_settings         3   flic_users          9
-      ─────────────────────────────────────────────
-      Tổng 5.230 document | Thu 9.379.929.561đ | Chi 8.927.311.876đ
+  BA LỖ HỔNG ĐÃ VÁ
+  ----------------
+  1. Vào được mà KHÔNG cần mật khẩu.
+     Bản cũ nhớ phiên bằng localStorage chỉ lưu tên đăng nhập và không kiểm lại
+     mật khẩu. Gõ localStorage.setItem('flic_currentUser','{"username":"..."}')
+     rồi tải lại trang là vào thẳng với quyền của người đó.
+     → Bỏ hẳn cách nhớ phiên này. Phiên do Firebase Auth giữ.
 
-  ĐƯỜNG LUI: up lại So-Thu-Chi-FLIC-V2.6.7.html là app quay về project cũ,
-  dữ liệu cũ vẫn còn nguyên (lưu ý: phiếu lập trong lúc chạy V2.7.0 nằm ở
-  project mới, phải copy ngược nếu muốn thấy lại).
+  2. Mật khẩu 9 người lộ ngay khi mở trang.
+     Bản cũ so mật khẩu Ở TRÌNH DUYỆT nên phải tải cả flic_users kèm mật khẩu
+     chữ thô trước khi ai đăng nhập.
+     → Mật khẩu kiểm trên MÁY CHỦ (Cloud Function flicDangNhap), băm scrypt,
+       lưu ở flic_secrets mà không trình duyệt nào đọc được. Lần đăng nhập đầu
+       tự băm rồi xoá hẳn mật khẩu chữ thô.
 
-  CÒN LẠI (chưa làm, theo lộ trình bảo mật):
-    GĐ1  Firebase Auth + băm mật khẩu (hiện flic_users còn lưu mật khẩu chữ thô)
-    GĐ2  Firestore Rules phân quyền máy chủ
-    GĐ3  Xác thực 2 bước (TOTP), App Check, giới hạn API key theo tên miền
+  3. Phiên ẩn danh.
+     Bản cũ dùng signInAnonymously() — ai cũng tự tạo phiên rồi đọc/ghi Firestore.
+     → Bỏ. Đăng nhập bằng custom token; luật máy chủ chặn sign_in_provider
+       'anonymous'.
+
+  THAY ĐỔI KHÁC
+  -------------
+  · Mọi thao tác tài khoản (tạo/sửa/xoá/phân quyền/đổi mật khẩu) gọi Cloud
+    Function — máy chủ kiểm quyền, không còn ghi thẳng Firestore.
+  · Mọi lệnh đọc Firestore dời xuống SAU khi đăng nhập (trước chạy ngay lúc mở
+    trang, luật mới sẽ chặn).
+  · Chỉ Quản trị mới tải cả danh sách tài khoản; người khác chỉ thấy hồ sơ mình.
+  · Đổi mật khẩu phải nhập mật khẩu hiện tại, tối thiểu 8 ký tự.
+  · Quản trị đổi quyền ai thì người đó nhận quyền mới ngay, không cần đăng xuất.
+  · Chống dò mật khẩu: sai 10 lần trong 15 phút thì khoá tạm.
+
+  CẦN CÓ TRƯỚC KHI CHẠY
+  ---------------------
+  · 3 Cloud Function đã deploy ở asia-southeast1:
+      flicDangNhap · flicDoiMatKhau · flicQuanLyTaiKhoan
+  · Bản này chạy được với luật Firestore CŨ (V1) lẫn MỚI (V2.0.0).
+    Cài luật mới SAU khi bản này đã chạy ổn.
+
+  ĐƯỜNG LUI: up lại V2.7.0. Lưu ý V2.7.0 cần mật khẩu chữ thô trong flic_users —
+  mà mỗi lần ai đó đăng nhập bằng V2.8.0 là mật khẩu người đó bị băm và xoá bản
+  chữ thô. Lùi về sau khi mọi người đã đăng nhập thì phải đặt lại mật khẩu.
+
+  CÒN LẠI: GĐ2 (phân quyền máy chủ theo vai trò, khoá kỳ đã quyết toán),
+           GĐ3 (2 bước TOTP, App Check, tự đăng xuất).
 ================================================================================
 -->
 <html lang="vi">
@@ -38,6 +62,7 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-functions-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js" defer></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" defer></script>
@@ -231,7 +256,7 @@
   <div class="app-header">
     <div>
       <h1>💰 Sổ Thu Chi FLIC</h1>
-      <div class="ver">Phiên bản: V2.7.0</div>
+      <div class="ver">Phiên bản: V2.8.0</div>
     </div>
     <div class="row" style="gap:8px;">
       <div class="role-chip" id="roleChip" onclick="doLogout()">—</div>
@@ -383,6 +408,7 @@ const firebaseConfig = {
 // Dữ liệu được copy nguyên vẹn từ so-thu-chi-9f0b5 ngày 10/10/2026, đối chiếu khớp từng ký tự
 // (6 collection / 5.230 document). Project cũ vẫn giữ bản flic_* làm dự phòng.
 let db;
+let fnFlic;              // V2.8.0 — cổng gọi Cloud Functions
 const CUR_USER_KEY = 'flic_currentUser';
 
 const SEED_DANHMUC = [{"stt": 1, "maKhoan": "HP-NN-01-Pre", "tenKhoan": "Học phí Tiếng anh Cambridge Pre", "mucThu": 0, "linhVuc": "Học phí Ngoại ngữ Cambridge", "loai": "Tiếng Anh Cambridge", "loaiPhieu": "thu", "thucThuPercent": 80, "nhomChia": "DNTU"}, {"stt": 2, "maKhoan": "HP-NN-01-Starters", "tenKhoan": "Học phí Tiếng anh Cambridge Starters", "mucThu": 0, "linhVuc": "Học phí Ngoại ngữ Cambridge", "loai": "Tiếng Anh Cambridge", "loaiPhieu": "thu", "thucThuPercent": 80, "nhomChia": "DNTU"}, {"stt": 3, "maKhoan": "HP-NN-01-Movers", "tenKhoan": "Học phí Tiếng anh Cambridge Movers", "mucThu": 0, "linhVuc": "Học phí Ngoại ngữ Cambridge", "loai": "Tiếng Anh Cambridge", "loaiPhieu": "thu", "thucThuPercent": 80, "nhomChia": "DNTU"}, {"stt": 4, "maKhoan": "HP-NN-01-Flyer", "tenKhoan": "Học phí Tiếng anh Cambridge Flyer", "mucThu": 0, "linhVuc": "Học phí Ngoại ngữ Cambridge", "loai": "Tiếng Anh Cambridge", "loaiPhieu": "thu", "thucThuPercent": 80, "nhomChia": "DNTU"}, {"stt": 5, "maKhoan": "HP-NN-01-Ket", "tenKhoan": "Học phí Tiếng anh Cambridge Ket", "mucThu": 0, "linhVuc": "Học phí Ngoại ngữ Cambridge", "loai": "Tiếng Anh Cambridge", "loaiPhieu": "thu", "thucThuPercent": 80, "nhomChia": "DNTU"}, {"stt": 6, "maKhoan": "HP-NN-01-Pet", "tenKhoan": "Học phí Tiếng anh Cambridge Pet", "mucThu": 0, "linhVuc": "Học phí Ngoại ngữ Cambridge", "loai": "Tiếng Anh Cambridge", "loaiPhieu": "thu", "thucThuPercent": 80, "nhomChia": "DNTU"}, {"stt": 7, "maKhoan": "HP-NN-TACDR", "tenKhoan": "Học phí Tiếng anh Cambridge DR", "mucThu": 1000000, "linhVuc": "Học phí Ngoại ngữ FLIC", "loai": "Tiếng Anh CĐR", "loaiPhieu": "thu", "thucThuPercent": 80, "nhomChia": "DNTU"}, {"stt": 8, "maKhoan": "HP-TH-01-Cơ bản", "tenKhoan": "Học phí Tin học Cơ bản", "mucThu": 1000000, "linhVuc": "Học phí Tin học", "loai": "Học UDCNTT", "loaiPhieu": "thu", "thucThuPercent": 80, "nhomChia": "DNTU"}, {"stt": 9, "maKhoan": "HP-TH-01-Nâng cao", "tenKhoan": "Học phí Tin học Nâng cao", "mucThu": 1200000, "linhVuc": "Học phí Tin học", "loai": "Học UDCNTT", "loaiPhieu": "thu", "thucThuPercent": 80, "nhomChia": "DNTU"}, {"stt": 10, "maKhoan": "HP-TH-02-MOS", "tenKhoan": "Học phí Tin học MOS", "mucThu": 1200000, "linhVuc": "Học phí Tin học", "loai": "Học MOS", "loaiPhieu": "thu", "thucThuPercent": 80, "nhomChia": "DNTU"}, {"stt": 11, "maKhoan": "HP-TH-02-KID", "tenKhoan": "Học phí Tin học thiếu nhi", "mucThu": 0, "linhVuc": "Học phí Tin học", "loai": "Học Tin học Thiếu nhi", "loaiPhieu": "thu", "thucThuPercent": 80, "nhomChia": "DNTU"}, {"stt": 12, "maKhoan": "HP-SUM", "tenKhoan": "Học phí khóa hè trải nghiệm (Summer camp)", "mucThu": 0, "linhVuc": "Học phí Summer Camp", "loai": "Summer Camp", "loaiPhieu": "thu", "thucThuPercent": 80, "nhomChia": "DNTU"}, {"stt": 13, "maKhoan": "TE-HDT-DNTU", "tenKhoan": "Thu phí tổ chức Hội đồng thi (25%)", "mucThu": 0, "linhVuc": "DNTU", "loai": "Thu hợp đồng dịch vụ (25%)", "loaiPhieu": "thu", "thucThuPercent": 100, "nhomChia": "FLIC100"}, {"stt": 14, "maKhoan": "SA-01-TA", "tenKhoan": "Thu lệ phí sách Tiếng Anh Cambridge", "mucThu": 0, "linhVuc": "Khác", "loai": "Sách Tiếng Anh", "loaiPhieu": "thu", "thucThuPercent": 80, "nhomChia": "DNTU"}, {"stt": 15, "maKhoan": "TE-01- Starters giấy", "tenKhoan": "Lệ phí thi Starters giấy", "mucThu": 1000000, "linhVuc": "VN290", "loai": "Thi Cambridge", "loaiPhieu": "thu", "thucThuPercent": 9.5, "nhomChia": "VN290"}, {"stt": 16, "maKhoan": "TE-01- Starters máy", "tenKhoan": "Lệ phí thi Starters máy", "mucThu": 950000, "linhVuc": "VN290", "loai": "Thi Cambridge", "loaiPhieu": "thu", "thucThuPercent": 9.5, "nhomChia": "VN290"}, {"stt": 17, "maKhoan": "TE-01- Movers giấy", "tenKhoan": "Lệ phí thi Movers giấy", "mucThu": 1070000, "linhVuc": "VN290", "loai": "Thi Cambridge", "loaiPhieu": "thu", "thucThuPercent": 9.5, "nhomChia": "VN290"}, {"stt": 18, "maKhoan": "TE-01- Movers máy", "tenKhoan": "Lệ phí thi Movers máy", "mucThu": 1010000, "linhVuc": "VN290", "loai": "Thi Cambridge", "loaiPhieu": "thu", "thucThuPercent": 9.5, "nhomChia": "VN290"}, {"stt": 19, "maKhoan": "TE-01- Flyers giấy", "tenKhoan": "Lệ phí thi Flyers giấy", "mucThu": 1110000, "linhVuc": "VN290", "loai": "Thi Cambridge", "loaiPhieu": "thu", "thucThuPercent": 9.5, "nhomChia": "VN290"}, {"stt": 20, "maKhoan": "TE-01- Flyers máy", "tenKhoan": "Lệ phí thi Flyers máy", "mucThu": 0, "linhVuc": "VN290", "loai": "Thi Cambridge", "loaiPhieu": "thu", "thucThuPercent": 9.5, "nhomChia": "VN290"}, {"stt": 21, "maKhoan": "TE-01- A2 giấy", "tenKhoan": "Lệ phí thi A2 giấy", "mucThu": 1320000, "linhVuc": "VN290", "loai": "Thi Cambridge", "loaiPhieu": "thu", "thucThuPercent": 9.5, "nhomChia": "VN290"}, {"stt": 22, "maKhoan": "TE-01- A2 máy", "tenKhoan": "Lệ phí thi A2 máy", "mucThu": 1250000, "linhVuc": "VN290", "loai": "Thi Cambridge", "loaiPhieu": "thu", "thucThuPercent": 9.5, "nhomChia": "VN290"}, {"stt": 23, "maKhoan": "TE-01- B1 giấy", "tenKhoan": "Lệ phí thi B1 giấy", "mucThu": 1420000, "linhVuc": "VN290", "loai": "Thi Cambridge", "loaiPhieu": "thu", "thucThuPercent": 9.5, "nhomChia": "VN290"}, {"stt": 24, "maKhoan": "TE-01- B1 máy", "tenKhoan": "Lệ phí thi B1 máy", "mucThu": 1340000, "linhVuc": "VN290", "loai": "Thi Cambridge", "loaiPhieu": "thu", "thucThuPercent": 9.5, "nhomChia": "VN290"}, {"stt": 25, "maKhoan": "TE-01- B2 giấy", "tenKhoan": "Lệ phí thi B2 giấy", "mucThu": 2250000, "linhVuc": "VN290", "loai": "Thi Cambridge", "loaiPhieu": "thu", "thucThuPercent": 9.5, "nhomChia": "VN290"}, {"stt": 26, "maKhoan": "TE-01- B2 máy", "tenKhoan": "Lệ phí thi B2 máy", "mucThu": 2250000, "linhVuc": "VN290", "loai": "Thi Cambridge", "loaiPhieu": "thu", "thucThuPercent": 9.5, "nhomChia": "VN290"}, {"stt": 27, "maKhoan": "TE-01- C1 máy", "tenKhoan": "Lệ phí thi C1 máy", "mucThu": 2950000, "linhVuc": "VN290", "loai": "Thi Cambridge", "loaiPhieu": "thu", "thucThuPercent": 9.5, "nhomChia": "VN290"}, {"stt": 28, "maKhoan": "TR-01-TA", "tenKhoan": "Lệ phí thi thử Tiếng Anh", "mucThu": 100000, "linhVuc": "Thi Ngoại ngữ", "loai": "Thi thử Tiếng Anh", "loaiPhieu": "thu", "thucThuPercent": 80, "nhomChia": "DNTU"}, {"stt": 29, "maKhoan": "TE-02-CB", "tenKhoan": "Lệ phí thi UDCNTT cơ bản", "mucThu": 600000, "linhVuc": "Thi Tin học", "loai": "Thi UDCNTT", "loaiPhieu": "thu", "thucThuPercent": 80, "nhomChia": "DNTU"}, {"stt": 30, "maKhoan": "TE-02-NC", "tenKhoan": "Lệ phí thi UDCNTT nâng cao", "mucThu": 600000, "linhVuc": "Thi Tin học", "loai": "Thi UDCNTT", "loaiPhieu": "thu", "thucThuPercent": 80, "nhomChia": "DNTU"}, {"stt": 31, "maKhoan": "TE-02-MOS", "tenKhoan": "Lệ phí thi MOS", "mucThu": 900000, "linhVuc": "Thi Tin học", "loai": "Thi MOS", "loaiPhieu": "thu", "thucThuPercent": 80, "nhomChia": "DNTU"}, {"stt": 32, "maKhoan": "TR-01-CB", "tenKhoan": "Lệ phí thi thử UDCNTT cơ bản", "mucThu": 60000, "linhVuc": "Thi Tin học", "loai": "Thi thử UDCNTT", "loaiPhieu": "thu", "thucThuPercent": 80, "nhomChia": "DNTU"}, {"stt": 33, "maKhoan": "TR-01-NC", "tenKhoan": "Lệ phí thi thử UDCNTT nâng cao", "mucThu": 60000, "linhVuc": "Thi Tin học", "loai": "Thi thử UDCNTT", "loaiPhieu": "thu", "thucThuPercent": 80, "nhomChia": "DNTU"}, {"stt": 34, "maKhoan": "CP-Luong-L1", "tenKhoan": "Chi Lương cơ hữu", "mucThu": 0, "linhVuc": "Chi phí Vận hành", "loai": "Lương", "loaiPhieu": "chi", "thucThuPercent": null, "nhomChia": null}, {"stt": 35, "maKhoan": "CP-Luong-L2", "tenKhoan": "Chi Lương giáo viên", "mucThu": 0, "linhVuc": "Chi phí Vận hành", "loai": "Lương", "loaiPhieu": "chi", "thucThuPercent": null, "nhomChia": null}, {"stt": 36, "maKhoan": "CP-Luong-L3", "tenKhoan": "Chi Lương trợ giảng/Cộng tác viên", "mucThu": 0, "linhVuc": "Chi phí Vận hành", "loai": "Lương", "loaiPhieu": "chi", "thucThuPercent": null, "nhomChia": null}, {"stt": 37, "maKhoan": "CP-HĐDV", "tenKhoan": "Chi phí hợp đồng dịch vụ/ khoán việc/ chuyên gia", "mucThu": 0, "linhVuc": "Chi phí Vận hành", "loai": "Hợp đồng dịch vụ", "loaiPhieu": "chi", "thucThuPercent": null, "nhomChia": null}, {"stt": 38, "maKhoan": "CP-HDT", "tenKhoan": "Chi phí Hội đồng thi cấp chứng chỉ/chứng nhận", "mucThu": 0, "linhVuc": "Chi phí Vận hành", "loai": "Chi phí HĐT", "loaiPhieu": "chi", "thucThuPercent": null, "nhomChia": null}, {"stt": 39, "maKhoan": "CP-DNTU", "tenKhoan": "Chi trích nộp DNTU 20% (doanh thu)", "mucThu": 0, "linhVuc": "Chi phí Vận hành", "loai": "Trích nộp DNTU", "loaiPhieu": "chi", "thucThuPercent": null, "nhomChia": null}, {"stt": 40, "maKhoan": "CP-FLIC", "tenKhoan": "Chi Trích nộp quỹ Phát triển FLIC 15% (doanh thu)", "mucThu": 0, "linhVuc": "Chi phí Vận hành", "loai": "Trích nộp quỹ Phát triển FLIC", "loaiPhieu": "chi", "thucThuPercent": null, "nhomChia": null}, {"stt": 41, "maKhoan": "CP-CTP", "tenKhoan": "Chi công tác phí", "mucThu": 0, "linhVuc": "Chi phí Vận hành", "loai": "Công tác phí", "loaiPhieu": "chi", "thucThuPercent": null, "nhomChia": null}, {"stt": 42, "maKhoan": "CP-VN290", "tenKhoan": "Chi Thanh toán Hợp đồng dịch vụ thi Cambridge VN290", "mucThu": 0, "linhVuc": "Cambridge 290", "loai": "Hợp đồng thi Cambridge", "loaiPhieu": "chi", "thucThuPercent": null, "nhomChia": null}, {"stt": 43, "maKhoan": "CP-TĐT", "tenKhoan": "Chi nộp thuế điện tử", "mucThu": 0, "linhVuc": "Chi phí Vận hành", "loai": "Nộp thuế điện tử", "loaiPhieu": "chi", "thucThuPercent": null, "nhomChia": null}, {"stt": 44, "maKhoan": "CP-BHXH", "tenKhoan": "Chi nộp BHXH", "mucThu": 0, "linhVuc": "Chi phí Vận hành", "loai": "Bảo hiểm xã hội", "loaiPhieu": "chi", "thucThuPercent": null, "nhomChia": null}, {"stt": 45, "maKhoan": "CP-VPP", "tenKhoan": "Chi phí mua Văn phòng phẩm", "mucThu": 0, "linhVuc": "Chi phí Vận hành", "loai": "Văn phòng phẩm", "loaiPhieu": "chi", "thucThuPercent": null, "nhomChia": null}, {"stt": 46, "maKhoan": "CP-TT", "tenKhoan": "Chi phí hoạt động truyền thông, Marketing", "mucThu": 0, "linhVuc": "Chi phí Vận hành", "loai": "Chi phí truyền thông", "loaiPhieu": "chi", "thucThuPercent": null, "nhomChia": null}, {"stt": 47, "maKhoan": "DT-TTB", "tenKhoan": "Chi mua trang thiết bị", "mucThu": 0, "linhVuc": "Đầu tư trang thiết bị", "loai": "Mua thiết bị/ thuê phần mềm", "loaiPhieu": "chi", "thucThuPercent": null, "nhomChia": null}, {"stt": 48, "maKhoan": "TU-PM", "tenKhoan": "Chi thuê phần mềm", "mucThu": 0, "linhVuc": "Đầu tư trang thiết bị", "loai": "Mua thiết bị/ thuê phần mềm", "loaiPhieu": "chi", "thucThuPercent": null, "nhomChia": null}, {"stt": 49, "maKhoan": "CP-MOS", "tenKhoan": "Chi mua tài khoản MOS", "mucThu": 0, "linhVuc": "Tài khoản luyện thi MOS", "loai": "Tài khoản luyện thi MOS", "loaiPhieu": "chi", "thucThuPercent": null, "nhomChia": null}, {"stt": 50, "maKhoan": "CP-HHP", "tenKhoan": "Chi hoàn học phí", "mucThu": 0, "linhVuc": "Khác", "loai": "Hoàn học phí", "loaiPhieu": "chi", "thucThuPercent": null, "nhomChia": null}, {"stt": 51, "maKhoan": "TL-LNG", "tenKhoan": "LNG", "mucThu": 0, "linhVuc": "Khác", "loai": "Lãi nhập gốc", "loaiPhieu": "chi", "thucThuPercent": null, "nhomChia": null}, {"stt": 52, "maKhoan": "CP-NH", "tenKhoan": "Chi phí duy trì tài khoản/Chi phí duy trì dịch vụ IB", "mucThu": 0, "linhVuc": "Khác", "loai": "Phí duy trì tài khoản", "loaiPhieu": "chi", "thucThuPercent": null, "nhomChia": null}, {"stt": 53, "maKhoan": "TL-DDA", "tenKhoan": "Thu Trả lại tài khoản DDA", "mucThu": 0, "linhVuc": "Khác", "loai": "Trả lại tài khoản DDA", "loaiPhieu": "chi", "thucThuPercent": null, "nhomChia": null}];
@@ -497,47 +523,64 @@ function renderActivityLog(){
 function bootFirebase(){
   firebase.initializeApp(firebaseConfig);
   db = firebase.firestore();
-  firebase.auth().signInAnonymously().then(()=>{ listenAll(); }).catch(e=>{
-    console.error(e);
-    document.getElementById('loginError').textContent = 'Không kết nối được Firebase: '+e.message;
+  fnFlic = firebase.app().functions('asia-southeast1');
+
+  /* V2.8.0 — KHÔNG đọc Firestore trước khi đăng nhập.
+     Trước đây app tải cả flic_users (kèm mật khẩu chữ thô) ngay khi mở trang. */
+  firebase.auth().onAuthStateChanged(async (user)=>{
+    if(!user || user.isAnonymous){ hienManHinhDangNhap(); return; }
+    try{
+      const tok = await user.getIdTokenResult();
+      const cl = tok.claims || {};
+      currentUser = {
+        id: user.uid,
+        username: cl.username || '',
+        displayName: cl.hoTen || user.displayName || '',
+        quyen: cl.quyen || {}
+      };
+      listenAll();          // chỉ chạy SAU khi đã đăng nhập thật
+      theoDoiHoSoMinh();
+      enterApp();
+    }catch(e){ fsErr(e); hienManHinhDangNhap(); }
   });
 }
-function checkLoginGate(){
-  if(userList.length===0){
-    document.getElementById('loginScreen').style.display='none';
-    document.getElementById('mainApp').style.display='none';
-    document.getElementById('bootstrapScreen').style.display='flex';
-    return;
-  }
-  document.getElementById('bootstrapScreen').style.display='none';
-  const raw = localStorage.getItem(CUR_USER_KEY);
-  if(raw){
-    const saved = JSON.parse(raw);
-    const acc = userList.find(u=>u.username===saved.username);
-    if(acc){
-      currentUser = {id:acc.id, username:acc.username, displayName:acc.displayName, quyen:acc.quyen||{}};
-      enterApp();
-      return;
-    }
-  }
+function hienManHinhDangNhap(){
   currentUser = null;
-  localStorage.removeItem(CUR_USER_KEY);
+  const bs = document.getElementById('bootstrapScreen'); if(bs) bs.style.display='none';
   document.getElementById('mainApp').style.display='none';
   document.getElementById('loginScreen').style.display='flex';
 }
+/* Quản trị đổi quyền của mình -> lấy token mới ngay, không phải đăng xuất.
+   Bỏ qua snapshot tạm (bài học App Chấm Công: hasPendingWrites/fromCache làm tải lại liên tục). */
+function theoDoiHoSoMinh(){
+  if(!currentUser) return;
+  db.collection('flic_users').doc(currentUser.id).onSnapshot(async (snap)=>{
+    if(snap.metadata.hasPendingWrites || snap.metadata.fromCache) return;
+    if(!snap.exists){ showToast('Tài khoản này đã bị xoá'); await firebase.auth().signOut(); location.reload(); return; }
+    const d = snap.data();
+    try{
+      const tok = await firebase.auth().currentUser.getIdTokenResult(true);
+      currentUser.quyen = (tok.claims && tok.claims.quyen) || d.quyen || {};
+    }catch(e){ currentUser.quyen = d.quyen || {}; }
+    currentUser.displayName = d.displayName || currentUser.displayName;
+    applyTabVisibility();
+    if(activeTab==='taiKhoan'){ renderCurAccountBox(); }
+  }, ()=>{});
+}
+/* V2.8.0 — ĐÃ BỎ checkLoginGate().
+   Bản cũ nhớ phiên bằng localStorage chỉ lưu TÊN ĐĂNG NHẬP và không kiểm mật khẩu:
+   ai gõ localStorage.setItem('flic_currentUser','{"username":"..."}') rồi tải lại
+   là vào thẳng với quyền của người đó. Giờ phiên do Firebase Auth giữ.
+   Việc dọn chìa khoá cũ nằm ở cuối hàm bootFirebase gọi tới. */
+try{ localStorage.removeItem(CUR_USER_KEY); }catch(e){}
+/* V2.8.0 — ĐÃ VÔ HIỆU HOÁ màn hình "tạo tài khoản đầu tiên".
+   Bản cũ cho bất kỳ ai mở trang tạo thẳng một tài khoản ĐỦ MỌI QUYỀN và ghi mật
+   khẩu chữ thô vào flic_users. Hệ thống nay đã có 9 tài khoản nên màn hình này
+   không còn lý do tồn tại, mà nó lại là một đường vào không ai canh.
+   Tài khoản mới chỉ do người có quyền quanLyTaiKhoan tạo, qua Cloud Function
+   flicQuanLyTaiKhoan — máy chủ kiểm quyền trước khi tạo. */
 async function doBootstrapAccount(){
-  const displayName = document.getElementById('bsDisplayName').value.trim();
-  const username = document.getElementById('bsUsername').value.trim();
-  const password = document.getElementById('bsPassword').value;
-  if(!displayName || !username || !password){ showToast('Vui lòng nhập đủ thông tin'); return; }
-  const quyen = {}; PERM_LIST.forEach(p=>quyen[p.key]=true);
-  try{
-    const ref = await db.collection('flic_users').add({username, password, displayName, quyen});
-    currentUser = {id:ref.id, username, displayName, quyen};
-    localStorage.setItem(CUR_USER_KEY, JSON.stringify({username}));
-    showToast('Đã tạo tài khoản Quản lý đầu tiên');
-    await seedDanhMucIfEmpty();
-  }catch(e){ fsErr(e); }
+  showToast('Chức năng này đã tắt. Tài khoản mới do Quản trị tạo ở tab Tài khoản.');
 }
 async function seedDanhMucIfEmpty(){
   const snap = await db.collection('flic_danhmuc').limit(1).get();
@@ -550,20 +593,51 @@ async function seedDanhMucIfEmpty(){
   await batch.commit();
   showToast('Đã nạp sẵn 53 khoản Thu/Chi mẫu vào Danh Mục');
 }
-function doLogin(){
+/* V2.8.0 — mật khẩu được kiểm TRÊN MÁY CHỦ, trình duyệt không còn thấy mật khẩu của ai. */
+let dangDangNhap = false;
+async function doLogin(){
+  if(dangDangNhap) return;
   const username = document.getElementById('loginUsername').value.trim();
-  const password = document.getElementById('loginPassword').value;
-  const errEl = document.getElementById('loginError');
-  const acc = userList.find(u=>u.username===username && u.password===password);
-  if(!acc){ errEl.textContent = 'Sai tên đăng nhập hoặc mật khẩu.'; return; }
+  const matKhau  = document.getElementById('loginPassword').value;
+  const errEl    = document.getElementById('loginError');
+  const nut      = document.querySelector('.btn-login');
+
+  if(!username || !matKhau){ errEl.textContent = 'Nhập tên đăng nhập và mật khẩu.'; return; }
+
+  dangDangNhap = true;
+  const chuCu = nut ? nut.innerHTML : '';
+  if(nut){ nut.disabled = true; nut.textContent = 'Đang kiểm tra…'; }
   errEl.textContent = '';
-  currentUser = {id:acc.id, username:acc.username, displayName:acc.displayName, quyen:acc.quyen||{}};
-  localStorage.setItem(CUR_USER_KEY, JSON.stringify({username:acc.username}));
-  enterApp();
+
+  try{
+    const kq = await fnFlic.httpsCallable('flicDangNhap')({username, matKhau});
+    await firebase.auth().signInWithCustomToken(kq.data.token);
+    document.getElementById('loginPassword').value = '';
+    if(kq.data.phaiDoiMatKhau){
+      setTimeout(()=>showToast('⚠️ Mật khẩu của bạn ngắn hơn 8 ký tự — vào tab Tài khoản đổi lại'), 1200);
+    }
+    // onAuthStateChanged sẽ tự đưa vào app
+  }catch(e){
+    const ma = e && e.code ? String(e.code) : '';
+    if(ma.indexOf('resource-exhausted') >= 0)
+      errEl.textContent = 'Sai quá nhiều lần. Vui lòng thử lại sau 15 phút.';
+    else if(ma.indexOf('unauthenticated') >= 0)
+      errEl.textContent = 'Sai tên đăng nhập hoặc mật khẩu.';
+    else if(ma.indexOf('permission-denied') >= 0)
+      errEl.textContent = (e.message || 'Tài khoản đã bị khoá.');
+    else if(ma.indexOf('internal') >= 0 || ma.indexOf('unavailable') >= 0)
+      errEl.textContent = 'Không gọi được máy chủ. Kiểm tra mạng rồi thử lại.';
+    else
+      errEl.textContent = (e && e.message) ? e.message : 'Không đăng nhập được.';
+  }finally{
+    dangDangNhap = false;
+    if(nut){ nut.disabled = false; nut.innerHTML = chuCu; }
+  }
 }
-function doLogout(){
+async function doLogout(){
   if(!confirm('Đăng xuất và đổi tài khoản?')) return;
-  localStorage.removeItem(CUR_USER_KEY);
+  try{ localStorage.removeItem(CUR_USER_KEY); }catch(e){}
+  try{ await firebase.auth().signOut(); }catch(e){}
   location.reload();
 }
 function enterApp(){
@@ -620,11 +694,16 @@ function tabPermKey(tab){
 
 /* ============ FIRESTORE LISTENERS ============ */
 function listenAll(){
-  db.collection('flic_users').onSnapshot(snap=>{
-    userList = snap.docs.map(d=>({id:d.id, ...d.data()}));
-    checkLoginGate();
-    if(activeTab==='taiKhoan'){ renderPermAudit(); renderUserList(); }
-  }, fsErr);
+  /* V2.8.0 — luật máy chủ chỉ cho Quản trị đọc cả collection.
+     Người thường chỉ có hồ sơ của chính mình (theoDoiHoSoMinh lo việc đó). */
+  if(hasPerm('quanLyTaiKhoan')){
+    db.collection('flic_users').onSnapshot(snap=>{
+      userList = snap.docs.map(d=>({id:d.id, ...d.data()}));
+      if(activeTab==='taiKhoan'){ renderPermAudit(); renderUserList(); }
+    }, fsErr);
+  } else {
+    userList = currentUser ? [currentUser] : [];
+  }
 
   db.collection('flic_danhmuc').orderBy('stt').onSnapshot(snap=>{
     danhMucList = snap.docs.map(d=>({id:d.id, ...d.data()}));
@@ -2930,14 +3009,19 @@ function renderCurAccountBox(){
   const perms = PERM_LIST.filter(p=>currentUser.quyen && currentUser.quyen[p.key]).map(p=>p.label);
   document.getElementById('curUserPerms').textContent = 'Quyền: ' + (perms.join(', ') || '—');
 }
-function doiMatKhauCuaToi(){
-  const val = document.getElementById('myNewPass').value;
-  if(!val){ showToast('Nhập mật khẩu mới'); return; }
-  db.collection('flic_users').doc(currentUser.id).update({password:val}).then(()=>{
+/* V2.8.0 — đổi mật khẩu phải qua máy chủ và phải nhập mật khẩu hiện tại. */
+async function doiMatKhauCuaToi(){
+  const moi = document.getElementById('myNewPass').value;
+  if(!moi){ showToast('Nhập mật khẩu mới'); return; }
+  if(moi.length < 8){ showToast('Mật khẩu mới phải từ 8 ký tự trở lên'); return; }
+  const cu = prompt('Nhập MẬT KHẨU HIỆN TẠI để xác nhận:');
+  if(cu === null) return;
+  if(!cu){ showToast('Chưa nhập mật khẩu hiện tại'); return; }
+  try{
+    await fnFlic.httpsCallable('flicDoiMatKhau')({matKhauCu: cu, matKhauMoi: moi});
     document.getElementById('myNewPass').value = '';
-    logActivity(`${currentUser.displayName} tự đổi mật khẩu`);
     showToast('Đã đổi mật khẩu');
-  }).catch(fsErr);
+  }catch(e){ showToast('❌ ' + (e.message || 'Không đổi được mật khẩu')); }
 }
 /* V2.6.6 — chặn ở lõi, không chỉ ẩn nút: người không có quyền gọi thẳng hàm cũng không chạy được */
 function chanKhongCoQuyenTK(){
@@ -2945,53 +3029,59 @@ function chanKhongCoQuyenTK(){
   showToast('Bạn không có quyền quản lý tài khoản');
   return true;
 }
-function themTaiKhoan(){
+async function themTaiKhoan(){
   if(chanKhongCoQuyenTK()) return;
   const displayName = document.getElementById('newUserDisplayName').value.trim();
   const username = document.getElementById('newUserUsername').value.trim();
-  const password = document.getElementById('newUserPassword').value;
-  if(!displayName || !username || !password){ showToast('Nhập đủ thông tin'); return; }
+  const matKhau  = document.getElementById('newUserPassword').value;
+  if(!displayName || !username || !matKhau){ showToast('Nhập đủ thông tin'); return; }
+  if(matKhau.length < 8){ showToast('Mật khẩu phải từ 8 ký tự trở lên'); return; }
   if(userList.some(u=>u.username===username)){ showToast('Tên đăng nhập này đã tồn tại'); return; }
   const quyen = {};
   PERM_LIST.forEach(p=> quyen[p.key] = document.getElementById('perm_new_'+p.key).checked);
-  db.collection('flic_users').add({username, displayName, password, quyen}).then(()=>{
+  try{
+    await fnFlic.httpsCallable('flicQuanLyTaiKhoan')({hanhDong:'them', username, displayName, matKhau, quyen});
     document.getElementById('newUserDisplayName').value='';
     document.getElementById('newUserUsername').value='';
     document.getElementById('newUserPassword').value='';
-    logActivity(`Tạo tài khoản ${displayName} (@${username})`);
     showToast('Đã tạo tài khoản '+displayName);
-  }).catch(fsErr);
+  }catch(e){ showToast('❌ ' + (e.message || 'Không tạo được tài khoản')); }
 }
 function editUser(id){ if(chanKhongCoQuyenTK()) return; editingUserId = id; renderUserList(); }
 function cancelEditUser(){ editingUserId = null; renderUserList(); }
-function saveEditUser(id){
+async function saveEditUser(id){
   if(chanKhongCoQuyenTK()) return;
   const displayName = document.getElementById('eUserDisplayName_'+id).value.trim();
-  const username = document.getElementById('eUserUsername_'+id).value.trim();
-  const password = document.getElementById('eUserPassword_'+id).value;
-  if(!displayName || !username){ showToast('Nhập đủ Tên hiển thị và Tên đăng nhập'); return; }
-  if(userList.some(u=>u.username===username && u.id!==id)){ showToast('Tên đăng nhập này đã tồn tại'); return; }
-  const data = {displayName, username};
-  if(password) data.password = password;
-  db.collection('flic_users').doc(id).update(data).then(()=>{
+  const matKhauMoi  = document.getElementById('eUserPassword_'+id).value;
+  if(!displayName){ showToast('Nhập Tên hiển thị'); return; }
+  if(matKhauMoi && matKhauMoi.length < 8){ showToast('Mật khẩu phải từ 8 ký tự trở lên'); return; }
+  try{
+    const d = {hanhDong:'sua', id, displayName};
+    if(matKhauMoi) d.matKhauMoi = matKhauMoi;
+    await fnFlic.httpsCallable('flicQuanLyTaiKhoan')(d);
     editingUserId = null; renderUserList(); showToast('Đã cập nhật tài khoản');
-    if(currentUser && currentUser.id===id){ currentUser.displayName=displayName; currentUser.username=username; renderCurAccountBox(); }
-  }).catch(fsErr);
+    if(currentUser && currentUser.id===id){ currentUser.displayName = displayName; renderCurAccountBox(); }
+  }catch(e){ showToast('❌ ' + (e.message || 'Không cập nhật được')); }
 }
-function xoaUser(id, btn){
+async function xoaUser(id, btn){
   if(chanKhongCoQuyenTK()) return;
   if(currentUser && currentUser.id===id){ showToast('Không thể xoá chính tài khoản đang đăng nhập'); return; }
   if(!requestConfirm('user:'+id, btn)) return;
-  const u = userList.find(x=>x.id===id);
-  db.collection('flic_users').doc(id).delete().then(()=>{ logActivity(`Xoá tài khoản ${u?u.displayName:id}`); showToast('Đã xoá tài khoản'); }).catch(fsErr);
+  try{
+    await fnFlic.httpsCallable('flicQuanLyTaiKhoan')({hanhDong:'xoa', id});
+    showToast('Đã xoá tài khoản');
+  }catch(e){ showToast('❌ ' + (e.message || 'Không xoá được tài khoản')); }
 }
-function togglePerm(id, key, checked){
+async function togglePerm(id, key, checked){
   if(chanKhongCoQuyenTK()){ renderUserList(); return; }
   if(currentUser && currentUser.id===id && key==='quanLyTaiKhoan' && !checked){
     showToast('Không thể tự bỏ quyền quản lý tài khoản của chính mình'); renderUserList(); return; }
   const u = userList.find(x=>x.id===id);
+  if(!u){ renderUserList(); return; }
   const quyen = Object.assign({}, u.quyen, {[key]:checked});
-  db.collection('flic_users').doc(id).update({quyen}).catch(fsErr);
+  try{
+    await fnFlic.httpsCallable('flicQuanLyTaiKhoan')({hanhDong:'sua', id, quyen});
+  }catch(e){ showToast('❌ ' + (e.message || 'Không đổi được quyền')); renderUserList(); }
 }
 /* V2.6.7 — bảng soát quyền: xem nhanh toàn bộ tài khoản và quyền của từng người */
 function renderPermAudit(){
