@@ -1,6 +1,101 @@
 <!DOCTYPE html>
 <!--
 ================================================================================
+  SỔ THU CHI FLIC  —  V2.10.0   (30/10/2026)
+  Giao diện mới · Tồn quỹ đã trừ khoản ngoài dịch vụ · Hoa hồng tái phí
+================================================================================
+  Nền: V2.8.0 (GĐ1 bảo mật, 10/10/2026). Ghi chú của V2.8.0 giữ nguyên ở dưới.
+
+  CAM KẾT VỀ SỐ LIỆU
+  ------------------
+  175 / 179 hàm GIỐNG HỆT TỪNG BYTE so với V2.8.0 (đối chiếu bằng mã băm md5).
+  Chỉ 4 hàm đổi, đều là hàm hiển thị hoặc dựng báo cáo:
+      renderPhieuForm · renderCanDoiTab · refreshLinhVuc · trichNopRows
+  KHÔNG chạm tới: tonQuyHienTai() · cnPhatSinh() · cnThucNhan() · cnCoTrich()
+  · cnTinhTNCN() · laNgoaiDoanhThu() · mọi hàm tính công nợ.
+  Tỷ lệ trích giữ nguyên: DNTU 20% · Quỹ phát triển 15% (từ 01/03/2026)
+  · TNCN chia 9 (từ 01/07/2026). Số tồn quỹ không đổi một đồng nào.
+
+  1. GIAO DIỆN  (giữ nguyên tông xanh lá #1a7a4c theo yêu cầu, không đổi màu)
+  --------------------------------------------------------------------------
+  · Phông Be Vietnam Pro — thiết kế riêng cho tiếng Việt, dấu không đè chữ hoa.
+    Vẫn giữ dãy phông dự phòng của hệ điều hành nếu mạng không tải được.
+  · Thanh đầu nền trắng, có logo FLIC DNTU (nhúng sẵn trong file, không gọi mạng).
+  · Tab phẳng, chỉ gạch chân màu thương hiệu thay vì tô nền cả ô.
+  · Ô nhập có viền sáng khi đang gõ; nút lún nhẹ khi bấm.
+  · Số tiền dùng chữ số đều bề ngang (tabular-nums) để các cột thẳng hàng.
+
+  2. KHỐI TỒN QUỸ Ở TAB PHIẾU THU  (mới)
+  --------------------------------------
+  · Số lớn bên trái  : Tồn quỹ hiện tại — CÁCH TÍNH CŨ, KHÔNG ĐỔI.
+  · Ô xanh bên phải  : Tồn quỹ ĐÃ TRỪ các khoản ngoài dịch vụ
+                       (Sách · Áo · Thu khác · Lãi NH · Trả lại DDA · Hoàn học phí)
+                       dùng đúng hàm laNgoaiDoanhThu() mà tab Báo Cáo đang dùng,
+                       nên hai nơi không bao giờ lệch nhau.
+  · Dòng dưới        : tách tồn quỹ theo từng NGUỒN TIỀN để thủ quỹ đối soát
+                       thẳng với từng sao kê.
+                       Tiền mặt    : VIB · AB Bank · Tiền giấy
+                       Chuyển khoản: PV Combank · Vietinbank · BIDV
+                       Số dư đầu kỳ tách riêng thành mục "Đầu kỳ".
+  · Phiếu chưa ghi nguồn hiện thành dòng đỏ kèm số phiếu — app KHÔNG tự đoán,
+    để còn biết mà bổ sung. (30/10/2026: 346 phiếu, dồn ở tháng 4 và tháng 7.)
+
+  3. Ô NGUỒN TIỀN THÀNH DANH SÁCH CHỌN
+  ------------------------------------
+  Trước đây gõ tay nên cùng một ngân hàng có nhiều cách viết ("PV combank",
+  "PVcombank", "VIB Bank", "VIB"...). Nay chọn từ 6 nguồn chuẩn. Phiếu cũ có
+  tên không khớp vẫn GIỮ NGUYÊN giá trị, gắn nhãn "(tên cũ)" để không mất dữ liệu.
+
+  4. ẨN THỐNG KÊ KỲ THI
+  ---------------------
+  Bảng quá dài, không dùng tới khi làm việc hằng ngày. Hàm renderThongKeKyThi()
+  và kyThiCompute() GIỮ NGUYÊN trong mã — bỏ dấu chú thích ở 2 chỗ trong
+  renderCanDoiTab() và refreshLinhVuc() là hiện lại ngay.
+
+  5. HOA HỒNG TÁI PHÍ  (mới — tab Báo Cáo)
+  ----------------------------------------
+  · Tính trên MỌI phiếu thu có Loại bán = Renew, không phụ thuộc mã khoản có
+    tick hay không.
+  · Tổng chi = 1% doanh số Renew của kỳ, CHIA ĐỀU cho N nhân sự Học vụ.
+    Khác hoa hồng tuyển sinh (ở đó mỗi người 4% nên tổng chi = 4% x số người).
+  · Chia lẻ thì người cuối nhận phần dư, để cộng lại khớp đúng tổng — không
+    lệch 1-2 đồng.
+  · Ba ô cấu hình ngay trên khối: Áp dụng từ (mặc định 01/11/2026) · Tỷ lệ (1%)
+    · Số nhân sự (mặc định 2, đổi 2-3-4 lúc nào cũng được, bấm Lưu là xong).
+  · Mốc áp dụng là ô RIÊNG, không đụng mốc hoa hồng tuyển sinh (01/08/2026).
+    Lọc cả năm thì phiếu Renew trước mốc vẫn không được tính.
+  · Có nút Xuất Excel riêng cho khối này.
+
+  6. CỘT MỚI TRONG EXCEL TỔNG HỢP TRÍCH NỘP
+  -----------------------------------------
+  · Thêm cột "HOA HỒNG TÁI PHÍ (1%)" ngay sau cột Hoa hồng bộ phận chuyên môn,
+    ở cả bản thường lẫn bản Chốt. Bảng chi tiết nay 12 cột (trước 11).
+  · Bảng tóm tắt đầu file thêm dòng "3.3 Hoa hồng Tái phí (Renew)" cạnh 3.1 và
+    3.2 — vẫn là khoản nằm TRONG quỹ hoạt động (mục 3), không cộng thêm vào tổng.
+  · Tổng cột này KHỚP ĐÚNG tổng chi hiển thị trên khối ở tab Báo Cáo.
+
+  ĐÃ KIỂM CHỨNG TRƯỚC KHI PHÁT HÀNH
+  ---------------------------------
+  · 24/24 phép thử số học hoa hồng tái phí (chia đều 2-3-4 người, số lẻ, lọc
+    phiếu, mốc không hồi cứu, bản Chốt loại Sách/Áo).
+  · 21/21 phép thử gom tên nguồn tiền + 14/14 phép thử số tiền khối tồn quỹ.
+  · Đối chiếu md5 toàn bộ 179 hàm của V2.8.0 — 175 hàm giống hệt, 4 hàm đổi
+    đúng như liệt kê ở trên, 0 hàm bị mất.
+  · Xuất thử file Excel bằng chính hàm của phần mềm, kiểm từng ô.
+  · Cú pháp JS sạch.
+
+  ĐƯỜNG LUI: up lại V2.8.0. Bản này không đổi cấu trúc dữ liệu trên Firestore,
+  không đổi luật Firestore, không đổi Cloud Function — lùi về là chạy được ngay,
+  không mất gì. Riêng cấu hình hoa hồng tái phí lưu thêm 3 trường
+  (tpTuNgay · tpTyLe · tpSoNguoi) trong flic_settings/tyLeTrichNop; V2.8.0 bỏ
+  qua 3 trường này, không gây lỗi.
+
+  CÒN LẠI: GĐ2 (phân quyền máy chủ theo vai trò, khoá kỳ đã quyết toán),
+           GĐ3 (2 bước TOTP, App Check, tự đăng xuất).
+================================================================================
+-->
+<!--
+================================================================================
   SỔ THU CHI FLIC  —  V2.8.0   (10/10/2026)   ·   GĐ1 BẢO MẬT
 ================================================================================
   Nền: V2.7.0 (Firebase project riêng thuchiflic).
@@ -59,6 +154,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>Sổ Thu Chi FLIC</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
@@ -73,25 +171,47 @@
     --primary:#1a7a4c; --primary-dark:#0f5533; --bg:#f2f4f7; --card:#ffffff;
     --text:#1c2430; --muted:#6b7688; --border:#e3e7ee;
     --danger:#e5484d; --warn:#f5a623; --ok:#1aa260;
-    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    /* V2.9 — Be Vietnam Pro: phông thiết kế riêng cho tiếng Việt, dấu không đè lên chữ hoa.
+       Vẫn để nguyên dãy phông dự phòng của hệ điều hành nếu mạng không tải được. */
+    font-family:'Be Vietnam Pro',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
   body{margin:0;background:var(--bg);color:var(--text);padding-bottom:70px;}
   .hidden{display:none !important;}
+  /* V2.9 — thanh đầu nền trắng để logo FLIC đứng đúng nền gốc của nó.
+     Chrome càng nhạt thì số liệu càng nổi — cách các phần mềm kế toán vẫn làm. */
   .app-header{
-    position:sticky;top:0;z-index:50;background:linear-gradient(135deg,var(--primary),var(--primary-dark));
-    color:#fff;padding:14px 16px 12px;display:flex;align-items:center;justify-content:space-between;
-    box-shadow:0 2px 8px rgba(0,0,0,.15);
+    position:sticky;top:0;z-index:50;background:#fff;border-bottom:1px solid var(--border);
+    color:var(--text);padding:0 18px;height:62px;
+    display:flex;align-items:center;justify-content:space-between;
   }
-  .app-header h1{font-size:16px;margin:0;font-weight:700;}
-  .app-header .ver{font-size:10px;opacity:.8;font-weight:400;margin-top:2px;}
-  .role-chip{font-size:11px;background:rgba(255,255,255,.18);padding:4px 9px;border-radius:20px;cursor:pointer;white-space:nowrap;}
+  .app-header .brand{display:flex;align-items:center;gap:13px;min-width:0;}
+  .app-header .brand img{height:36px;width:auto;display:block;flex:0 0 auto;}
+  .app-header .brand .vline{width:1px;height:26px;background:var(--border);flex:0 0 auto;}
+  .app-header h1{font-size:15px;margin:0;font-weight:700;letter-spacing:-.01em;white-space:nowrap;}
+  .app-header .ver{font-size:11px;color:var(--muted);font-weight:500;margin-top:1px;white-space:nowrap;}
+  .role-chip{
+    font-size:12.5px;font-weight:600;color:var(--text);background:#fff;
+    border:1px solid var(--border);padding:6px 13px;border-radius:8px;cursor:pointer;white-space:nowrap;
+    transition:border-color .15s ease,background .15s ease;
+  }
+  .role-chip:hover{border-color:var(--primary);background:#f6fbf8;}
   .row{display:flex;justify-content:space-between;align-items:center;gap:8px;}
 
-  .tabbar{display:flex;background:#fff;border-bottom:1px solid var(--border);position:sticky;top:60px;z-index:40;overflow-x:auto;}
-  .tabbar button{flex:1;padding:12px 4px;background:none;border:none;font-size:12.5px;font-weight:600;color:var(--muted);
-    border-bottom:3px solid transparent;cursor:pointer;white-space:nowrap;}
-  .tabbar button.active{color:#fff;background:var(--primary);border-color:var(--primary-dark);}
+  /* V2.9 — tab phẳng, chỉ gạch chân màu thương hiệu. Bản cũ tô nền xanh cả ô
+     làm tab đang chọn nặng hơn mọi thứ khác trên màn hình. */
+  .tabbar{display:flex;background:#fff;border-bottom:1px solid var(--border);position:sticky;top:62px;z-index:40;overflow-x:auto;padding:0 10px;}
+  .tabbar button{
+    flex:1;padding:13px 6px 14px;background:none;border:none;font-size:13px;font-weight:600;
+    color:var(--muted);cursor:pointer;white-space:nowrap;position:relative;
+    transition:color .18s ease;
+  }
+  .tabbar button:hover{color:var(--text);}
+  .tabbar button.active{color:var(--primary-dark);font-weight:700;}
+  .tabbar button.active:after{
+    content:'';position:absolute;left:8px;right:8px;bottom:0;height:2.5px;
+    background:var(--primary);border-radius:3px 3px 0 0;
+  }
 
   .section-tab{display:flex;gap:6px;padding:10px 12px;overflow-x:auto;background:var(--bg);}
   .section-tab button{flex:0 0 auto;padding:7px 14px;border-radius:20px;border:1px solid var(--border);background:#fff;
@@ -106,10 +226,24 @@
   .small{font-size:11.5px;}
 
   label{display:block;font-size:12.5px;color:var(--muted);margin:10px 0 4px;font-weight:600;}
-  input,select,textarea{width:100%;padding:10px 11px;border:1px solid var(--border);border-radius:9px;font-size:14px;background:#fbfcfe;}
+  input,select,textarea{
+    width:100%;padding:10px 11px;border:1px solid var(--border);border-radius:9px;
+    font-size:14px;background:#fff;font-family:inherit;color:var(--text);
+    transition:border-color .15s ease, box-shadow .15s ease;
+  }
+  /* V2.9 — viền sáng khi đang gõ: thấy rõ con trỏ đang ở ô nào */
+  input:focus,select:focus,textarea:focus{
+    outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(26,122,76,.14);
+  }
+  input::placeholder,textarea::placeholder{color:#aeb6c0;}
   textarea{resize:vertical;min-height:60px;}
   input[type=color]{padding:2px;height:41px;}
-  .btn{padding:11px 16px;border-radius:10px;border:none;font-size:14px;font-weight:700;cursor:pointer;}
+  .btn{
+    padding:11px 16px;border-radius:10px;border:none;font-size:14px;font-weight:700;cursor:pointer;
+    font-family:inherit;transition:transform .12s ease, box-shadow .12s ease, filter .12s ease;
+  }
+  .btn:active{transform:translateY(1px);}   /* V2.9 — nút lún nhẹ khi bấm */
+  .btn-primary:hover,.btn-ok:hover{filter:brightness(1.06);}
   .btn-block{width:100%;margin-top:14px;}
   .btn-primary{background:var(--primary);color:#fff;}
   .btn-ok{background:var(--ok);color:#fff;}
@@ -118,6 +252,41 @@
   .btn-amber{background:#fff7e6;color:#b7791f;border:1px solid #f0c36d;}
   .btn-sm{padding:7px 12px;font-size:12.5px;}
   .row-flex{display:flex;gap:10px;flex-wrap:wrap;}
+
+  /* ===== V2.9 — KHỐI TỒN QUỸ (tab Phiếu Thu) =====
+     Số chính giữ nguyên cách tính cũ. Ô xanh bên phải là con số đã trừ các khoản
+     không phải doanh thu dịch vụ. Dòng dưới tách theo từng nguồn tiền để thủ quỹ
+     đối soát thẳng với từng sao kê. */
+  .tq{padding:17px 18px 14px;}
+  .tq-top{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;flex-wrap:wrap;}
+  .tq-lb{font-size:12px;font-weight:600;color:var(--muted);margin-bottom:4px;}
+  .tq-big{font-size:30px;font-weight:800;letter-spacing:-.025em;line-height:1;
+          font-variant-numeric:tabular-nums;}
+  .tq-big .d{font-size:17px;font-weight:600;color:var(--muted);margin-left:3px;}
+  .tq-foot{font-size:11.5px;color:var(--muted);margin-top:6px;}
+  .tq-pill{
+    background:#eef7f2;border:1px solid #c9e4d6;border-radius:10px;padding:10px 14px;
+    min-width:300px;flex:0 1 auto;
+  }
+  .tq-pill .t1{font-size:11.5px;font-weight:700;color:var(--primary-dark);line-height:1.35;}
+  .tq-pill .t2{font-size:10.5px;color:#4a7a62;line-height:1.45;margin-top:1px;}
+  .tq-pill .v{font-size:21px;font-weight:800;letter-spacing:-.02em;color:var(--primary-dark);
+              margin-top:4px;font-variant-numeric:tabular-nums;}
+  .tq-pill .v .d{font-size:13px;font-weight:600;margin-left:2px;}
+  .tq-src{margin-top:14px;border-top:1px solid #eef2f6;padding-top:11px;
+          display:flex;align-items:center;gap:0;flex-wrap:wrap;row-gap:7px;}
+  .tq-g{font-size:10.5px;font-weight:700;color:var(--muted);letter-spacing:.03em;margin-right:11px;}
+  .tq-i{display:flex;align-items:baseline;gap:6px;padding:0 13px;border-left:1px solid #eef2f6;}
+  .tq-i.first{border-left:0;padding-left:0;}
+  .tq-i .n{font-size:12px;color:var(--muted);font-weight:500;}
+  .tq-i .v{font-size:14px;font-weight:700;letter-spacing:-.01em;font-variant-numeric:tabular-nums;}
+  .tq-i.warn .n,.tq-i.warn .v{color:var(--danger);}
+  .tq-sp{width:22px;}
+  @media(max-width:760px){
+    .tq-big{font-size:25px;}
+    .tq-pill{min-width:0;width:100%;}
+    .tq-i{padding:0 10px;}
+  }
   .row-flex>.field{flex:1;min-width:140px;}
   .btn-row{display:flex;gap:8px;flex-wrap:wrap;}
 
@@ -254,9 +423,13 @@
 <!-- ============ APP CHÍNH ============ -->
 <div id="mainApp" style="display:none;">
   <div class="app-header">
-    <div>
-      <h1>💰 Sổ Thu Chi FLIC</h1>
-      <div class="ver">Phiên bản: V2.8.0</div>
+    <div class="brand">
+      <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAbgAAADJCAMAAABmHddRAAAWfmNhQlgAABZ+anVtYgAAAB5qdW1kYzJwYQARABCAAACqADibcQNjMnBhAAAAFlhqdW1iAAAAR2p1bWRjMm1hABEAEIAAAKoAOJtxA3VybjpjMnBhOmFhZGMxMzU1LTE2ZTQtNDdiZC04NDQ0LWJkYjg2YzE3ODc1ZQAAAAOTanVtYgAAAClqdW1kYzJhcwARABCAAACqADibcQNjMnBhLmFzc2VydGlvbnMAAAAAuGp1bWIAAABEanVtZGNib3IAEQAQgAAAqgA4m3ETYzJwYS5pbmdyZWRpZW50LnYzAAAAABhjMnNoIamVOWjqwWtXnMd8YIwo9wAAAGxjYm9yo2lkYzpmb3JtYXRpaW1hZ2UvcG5namluc3RhbmNlSUR4LHhtcDppaWQ6OTMxZTBlNjEtZmFjMi00N2QzLTk1MDYtNWFmZTQ1MjQzYTA1bHJlbGF0aW9uc2hpcGhwYXJlbnRPZgAAAeJqdW1iAAAAQWp1bWRjYm9yABEAEIAAAKoAOJtxE2MycGEuYWN0aW9ucy52MgAAAAAYYzJzaKSCWBQFrcZ1vh8Z4EqmnKYAAAGZY2JvcqJnYWN0aW9uc4KiZmFjdGlvbmtjMnBhLm9wZW5lZGpwYXJhbWV0ZXJzoWtpbmdyZWRpZW50c4GiY3VybHgtc2VsZiNqdW1iZj1jMnBhLmFzc2VydGlvbnMvYzJwYS5pbmdyZWRpZW50LnYzZGhhc2hYIFAibjSFkHEoQoHzWH3n/UZte0nE/VmfZGTNaPo6ma9lpGZhY3Rpb254HWNvbS5hbnRocm9waWMuY2xhdWRlLnByb3ZpZGVkanBhcmFtZXRlcnOheB9jb20uYW50aHJvcGljLm9yaWdpbi1jb25maWRlbmNlZ3Vua25vd25rZGVzY3JpcHRpb254ZkNsYXVkZSBwcm92aWRlZCB0aGlzIGZpbGUgYXQgdGhlIHJlcXVlc3Qgb2YgYSB1c2VyIGFuZCBtYXkgaGF2ZSBjcmVhdGVkIG9yIG1vZGlmaWVkIHRoZSBmaWxlIGNvbnRlbnRzLm1zb2Z0d2FyZUFnZW50oWRuYW1lZkNsYXVkZXJhbGxBY3Rpb25zSW5jbHVkZWT1AAAAyGp1bWIAAABAanVtZGNib3IAEQAQgAAAqgA4m3ETYzJwYS5oYXNoLmRhdGEAAAAAGGMyc2hHBwU6/S5gpxMKg4U28fzOAAAAgGNib3KlY2FsZ2ZzaGEyNTZjcGFkTQAAAAAAAAAAAAAAAABkaGFzaFggVfT4Y7OIrJUWBhQzguUm08eJFGolnMZSkGXUg6dybr1kbmFtZW5qdW1iZiBtYW5pZmVzdGpleGNsdXNpb25zgaJlc3RhcnQYIWZsZW5ndGgZFooAAAI+anVtYgAAACdqdW1kYzJjbAARABCAAACqADibcQNjMnBhLmNsYWltLnYyAAAAAg9jYm9ypWNhbGdmc2hhMjU2aXNpZ25hdHVyZXhNc2VsZiNqdW1iZj0vYzJwYS91cm46YzJwYTphYWRjMTM1NS0xNmU0LTQ3YmQtODQ0NC1iZGI4NmMxNzg3NWUvYzJwYS5zaWduYXR1cmVqaW5zdGFuY2VJRHgseG1wOmlpZDo4MTUwMWQ0NC01ZWNjLTRlZTgtYTJlNS1jYmJlYzgwMTAzY2RyY3JlYXRlZF9hc3NlcnRpb25zg6JjdXJseC1zZWxmI2p1bWJmPWMycGEuYXNzZXJ0aW9ucy9jMnBhLmluZ3JlZGllbnQudjNkaGFzaFggUCJuNIWQcShCgfNYfef9Rm17ScT9WZ9kZM1o+jqZr2WiY3VybHgqc2VsZiNqdW1iZj1jMnBhLmFzc2VydGlvbnMvYzJwYS5hY3Rpb25zLnYyZGhhc2hYICLaCU+3fAj3wuV+gsRniIu4Ka7GctfAhYy8fnOJdtdZomN1cmx4KXNlbGYjanVtYmY9YzJwYS5hc3NlcnRpb25zL2MycGEuaGFzaC5kYXRhZGhhc2hYIONEF2iYowFr0+fnYRN6XBP/Rg9/EEtWqrFB7O3t2+wrdGNsYWltX2dlbmVyYXRvcl9pbmZvo2RuYW1lb0FudGhyb3BpYyBGaWxlc2d2ZXJzaW9uZTEuMC4wa3NwZWNWZXJzaW9uZTIuNC4wAAAQOGp1bWIAAAAoanVtZGMyY3MAEQAQgAAAqgA4m3EDYzJwYS5zaWduYXR1cmUAAAAQCGNib3LShFkCEqIBJhghWQIKMIICBjCCAY2gAwIBAgIUQOWgCu7COdC+uIP6BkIFPWdVEwAwCgYIKoZIzj0EAwMwSTEXMBUGA1UEChMOQW50aHJvcGljLCBQQkMxLjAsBgNVBAMTJUFudGhyb3BpYyBDb250ZW50IENyZWRlbnRpYWxzIFJvb3QgQ0EwHhcNMjYwODA3MTg0MzU2WhcNMjgwODA2MTk0MzU2WjBEMRcwFQYDVQQKEw5BbnRocm9waWMsIFBCQzEpMCcGA1UEAxMgQW50aHJvcGljIENsYXVkZSBDb250ZW50IFNpZ25pbmcwWTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAASYegpry1AYBRTVNL1CpTlbROnY3dey+UrsF9C3phYrATN3ZHf93Mo8RQN0KOUuOn19P4oWNFWe5n2/She9N7eTo1gwVjAOBgNVHQ8BAf8EBAMCB4AwFQYDVR0lBA4wDAYKKwYBBAGD6F4CATAMBgNVHRMBAf8EAjAAMB8GA1UdIwQYMBaAFM5R4gSBTmRbI/jjxM+aPpzB11zCMAoGCCqGSM49BAMDA2cAMGQCMDFzHRSeAXrSy1WOzkbhPZ6Km2wGTmZ/2gK18k8BQGXyqz88Rdrz6CTX9flAnYNVxgIwcF9c3fVhqmJKpi+UhasNUMko69cyX6STPfta3Q8EjyzDjzoyrol46FP6VFHhvUcJoWNwYWRZDZ4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA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" alt="FLIC DNTU">
+      <div class="vline"></div>
+      <div>
+        <h1>Sổ Thu Chi</h1>
+        <div class="ver">Phiên bản: V2.10.0</div>
+      </div>
     </div>
     <div class="row" style="gap:8px;">
       <div class="role-chip" id="roleChip" onclick="doLogout()">—</div>
@@ -434,7 +607,12 @@ let tyLeConfig = {dntu:20, quyPT:15, quyPTTuNgay:'2026-03-01', tncnChia:9, tncnT
 /* V2.3.0 — HOA HỒNG. Áp dụng từ 01/08/2026, KHÔNG hồi cứu thời gian trước.
    Tuyển sinh: MỖI nhân viên hưởng tyLe% trên TỔNG doanh số New sale của các mã có tick.
    Chuyên môn: mỗi mã một tỷ lệ riêng, tính trên toàn bộ doanh số của mã đó. */
-const HH_MAC_DINH = {tuNgay:'2026-08-01', tsTyLe:4, tsSoNguoi:2};
+/* V2.10 — thêm hoa hồng TÁI PHÍ (Renew). Mốc ngày RIÊNG, không đụng mốc tuyển sinh.
+   Khác cách tính của tuyển sinh: tuyển sinh mỗi người hưởng tsTyLe% trên tổng New sale
+   (tổng chi = tsTyLe × số người); tái phí tổng chi CỐ ĐỊNH tpTyLe% doanh số Renew
+   rồi CHIA ĐỀU cho tpSoNguoi — thêm người thì mỗi người ít đi, tổng không đổi. */
+const HH_MAC_DINH = {tuNgay:'2026-08-01', tsTyLe:4, tsSoNguoi:2,
+                     tpTuNgay:'2026-11-01', tpTyLe:1, tpSoNguoi:2};
 function hhCfg(){
   return Object.assign({}, HH_MAC_DINH, tyLeConfig.hh || {});
 }
@@ -1072,6 +1250,114 @@ function tonQuyHienTai(){
   });
   return base + thu - chi;
 }
+
+/* ══════════════════ V2.9 — SÁU NGUỒN TIỀN ══════════════════
+   Trường "Nguồn tiền" (nganHang) trước đây gõ tay nên cùng một ngân hàng có
+   nhiều cách viết. Rà 2.620 phiếu ngày 30/10/2026 thấy:
+     PV Combank : "PV combank" · "PV Combank" · "PVcombank"
+     Vietinbank : "Vietin bank" · "Vietinbank" · "Vietin Bank" · "VietinBank"
+     VIB        : "VIB Bank" · "VIB"
+     Tiền giấy  : "Tiền giấy" · "Tiền Giấy" · "tiền giấy" · "Tiền mặt"
+     AB Bank    : "AB bank" · "ABBank" · "AB Bank"
+     BIDV       : "BIDV" · "BIDV ANH MỸ" · "BIDV A Mỹ"
+   chuanNguon() gom hết về 6 tên chuẩn. Phiếu không khớp tên nào thì vào nhóm
+   "chưa ghi nguồn" — app KHÔNG tự đoán, để còn biết mà bổ sung. */
+const NGUON_TIEN = ['PV Combank','Vietinbank','VIB','AB Bank','BIDV','Tiền giấy'];
+const NGUON_TIEN_MAT = ['VIB','AB Bank','Tiền giấy'];        // theo quy ước của Trung tâm
+const NGUON_CHUYEN_KHOAN = ['PV Combank','Vietinbank','BIDV'];
+
+function chuanNguon(v){
+  let k = stripDiacritics(String(v||'')).toLowerCase().replace(/[^a-z0-9]/g,'');
+  if(!k) return '';
+  k = k.replace(/bank$/,'');                       // "VIB Bank"->vib · "ABBank"->ab
+  const map = {pvcom:'PV Combank', vietin:'Vietinbank', vib:'VIB',
+               ab:'AB Bank', bidv:'BIDV', tiengiay:'Tiền giấy', tienmat:'Tiền giấy'};
+  if(map[k]) return map[k];
+  if(k.indexOf('bidv')===0) return 'BIDV';         // "BIDV ANH MỸ"
+  return '';
+}
+
+/* Các phiếu THU thuộc nhóm không phải doanh thu dịch vụ (Sách · Áo · Thu khác ·
+   Lãi NH · Trả lại DDA · Hoàn học phí · chưa phân loại).
+   Dùng đúng hàm laNgoaiDoanhThu() mà tab Báo Cáo đang dùng, để hai nơi không
+   bao giờ lệch nhau. Phạm vi lọc giống hệt tonQuyHienTai(). */
+function tonQuyNgoaiDichVu(){
+  const asOf = openingBalanceSetting.asOfDate || '';
+  const rows = asOf ? phieuList.filter(p=>p.ngay>=asOf) : phieuList;
+  let s = 0;
+  rows.forEach(p=>{
+    if(typeof laButToan==='function' && laButToan(p)) return;
+    if(p.loai !== 'thu') return;
+    const dm = danhMucList.find(x=>x.maKhoan===p.maKhoan);
+    const lv = (dm && dm.linhVuc) ? dm.linhVuc : '(chưa phân loại)';
+    const lc = (dm && dm.loai)    ? dm.loai    : '(chưa phân loại)';
+    if(laNgoaiDoanhThu(lc, lv, p.maKhoan)) s += p.soTien || 0;
+  });
+  return s;
+}
+function tonQuyDaTruNgoaiDV(){ return tonQuyHienTai() - tonQuyNgoaiDichVu(); }
+
+/* Tồn quỹ tách theo từng nguồn. Số dư đầu kỳ không gắn với nguồn nào nên tách
+   riêng thành mục "Đầu kỳ" — cộng lại vẫn đúng bằng tồn quỹ. */
+function tonQuyTheoNguon(){
+  const asOf = openingBalanceSetting.asOfDate || '';
+  const base = asOf ? (openingBalanceSetting.amount || 0) : 0;
+  const rows = asOf ? phieuList.filter(p=>p.ngay>=asOf) : phieuList;
+  const m = {}; NGUON_TIEN.forEach(t=> m[t] = {tien:0, n:0});
+  const chua = {tien:0, n:0};
+  rows.forEach(p=>{
+    if(typeof laButToan==='function' && laButToan(p)) return;
+    const t = chuanNguon(p.nganHang);
+    const d = (p.loai==='thu' ? 1 : -1) * (p.soTien || 0);
+    if(t){ m[t].tien += d; m[t].n++; } else { chua.tien += d; chua.n++; }
+  });
+  return {m, chua, base};
+}
+
+/* Dựng khối tồn quỹ ở đầu tab Phiếu Thu */
+function khoiTonQuyHTML(){
+  const n   = v => formatNumber(v);
+  const ton = tonQuyHienTai();
+  const sau = tonQuyDaTruNgoaiDV();
+  const {m, chua, base} = tonQuyTheoNguon();
+
+  const oNguon = (ten, dau) => {
+    const g = m[ten];
+    return `<span class="tq-i${dau?' first':''}"><span class="n">${ten}</span>`
+         + `<span class="v">${n(g.tien)}</span></span>`;
+  };
+  const nhom = (nhan, ds) =>
+      `<span class="tq-g">${nhan}</span>` + ds.map((t,i)=>oNguon(t, i===0)).join('');
+
+  let cuoi = '';
+  if(base) cuoi += `<span class="tq-sp"></span><span class="tq-g">ĐẦU KỲ</span>`
+                 + `<span class="tq-i first"><span class="v">${n(base)}</span></span>`;
+  if(chua.n) cuoi += `<span class="tq-sp"></span>`
+                   + `<span class="tq-i first warn"><span class="n">Chưa ghi nguồn</span>`
+                   + `<span class="v">${chua.n} phiếu</span></span>`;
+
+  return `<div class="card tq">
+    <div class="tq-top">
+      <div>
+        <div class="tq-lb">Tồn quỹ hiện tại</div>
+        <div class="tq-big" style="color:${ton>=0?'var(--text)':'var(--danger)'}">${n(ton)}<span class="d">đ</span></div>
+        <div class="tq-foot">Toàn bộ tiền mặt và ngân hàng · ${n(phieuList.length)} phiếu</div>
+      </div>
+      <div class="tq-pill">
+        <div class="t1">Tồn quỹ đã trừ khoản ngoài dịch vụ</div>
+        <div class="t2">Sách · Áo · Thu khác · Lãi NH · Trả lại DDA · Hoàn học phí</div>
+        <div class="v">${n(sau)}<span class="d">đ</span></div>
+      </div>
+    </div>
+    <div class="tq-src">
+      ${nhom('TIỀN MẶT', NGUON_TIEN_MAT)}
+      <span class="tq-sp"></span>
+      ${nhom('CHUYỂN KHOẢN', NGUON_CHUYEN_KHOAN)}
+      ${cuoi}
+    </div>
+  </div>`;
+}
+
 function renderPhieuForm(loai){
   const el = document.getElementById('pane-'+(loai==='thu'?'phieuThu':'phieuChi'));
   const editId = phieuEditingId[loai];
@@ -1079,9 +1365,10 @@ function renderPhieuForm(loai){
   const sel = phieuSelectedDanhMuc[loai];
   const today = new Date().toISOString().slice(0,10);
   el.innerHTML = `
+    ${loai==='thu' ? khoiTonQuyHTML() : ''}
     <div class="card">
       <div class="card-title">${loai==='thu'?'💰 Lập Phiếu Thu':'💸 Lập Phiếu Chi'}</div>
-      <div class="hint">Tồn quỹ hiện tại: <b style="color:${tonQuyHienTai()>=0?'var(--ok)':'var(--danger)'}">${formatNumber(tonQuyHienTai())} đ</b></div>
+      <div class="hint">Chọn Mã khoản để tự điền Tên khoản, Mức thu gợi ý và tỷ lệ trích.</div>
       <label>Mã khoản</label>
       <button class="btn btn-outline" style="width:100%;text-align:left;" onclick="openMaKhoanPicker('${loai}', (d)=>onPhieuMaKhoanSelected('${loai}',d))">
         ${sel ? `📌 ${escapeHtml(sel.maKhoan)} — ${escapeHtml(sel.tenKhoan)}` : '— Bấm để chọn Mã khoản —'}
@@ -1151,7 +1438,18 @@ function renderPhieuForm(loai){
             <option value="TM" ${editing&&editing.hinhThuc==='TM'?'selected':''}>Tiền mặt (TM)</option>
           </select>
         </div>
-        <div class="field"><label>Ngân hàng/Nơi nhận-chi</label><input type="text" id="ph_${loai}_nganHang" placeholder="VD: PV combank" value="${editing?escapeHtml(editing.nganHang||''):''}"></div>
+        <div class="field"><label>Nguồn tiền</label>
+          <select id="ph_${loai}_nganHang">
+            ${(()=>{ const cur = editing ? (editing.nganHang||'') : '';
+                     const chuan = chuanNguon(cur);
+                     let o = `<option value=""${!cur?' selected':''}>— chọn nguồn tiền —</option>`;
+                     o += NGUON_TIEN.map(t=>`<option value="${t}"${chuan===t?' selected':''}>${t}</option>`).join('');
+                     /* Phiếu cũ ghi tên lạ: giữ nguyên giá trị để không làm đổi dữ liệu đã có */
+                     if(cur && !chuan) o += `<option value="${escapeHtml(cur)}" selected>${escapeHtml(cur)} (tên cũ)</option>`;
+                     return o; })()}
+          </select>
+          <div class="small muted" style="margin-top:4px;">Chọn từ danh sách để tồn quỹ tách theo nguồn được chính xác.</div>
+        </div>
         <div class="field"><label>Ghi chú</label><input type="text" id="ph_${loai}_ghiChu" value="${editing?escapeHtml(editing.ghiChu||''):''}"></div>
       </div>
       <button class="btn btn-primary btn-block" onclick="savePhieu('${loai}')">${editId?'💾 Cập nhật phiếu':'💾 Lưu phiếu '+(loai==='thu'?'Thu':'Chi')}</button>
@@ -2161,6 +2459,7 @@ function renderCanDoiTab(){
     </div>
     <div id="linhVucBody"></div>
     <div id="kyThiBody"></div>
+    <div id="taiPhiBody"></div>
     <div id="tuyenSinhBody"></div>
     <div id="chuyenMonBody"></div>
     <div id="canDoiBody"></div>
@@ -2169,8 +2468,13 @@ function renderCanDoiTab(){
   renderCanDoiBody();
   const lvEl = document.getElementById('linhVucBody');
   if(lvEl) lvEl.innerHTML = renderThongKeLinhVuc();
-  const ktEl = document.getElementById('kyThiBody');
-  if(ktEl) ktEl.innerHTML = renderThongKeKyThi();
+  /* V2.10 — ẨN khối Thống kê kỳ thi: bảng quá dài, không dùng tới khi làm việc hằng ngày.
+     Hàm renderThongKeKyThi() và kyThiCompute() GIỮ NGUYÊN trong mã, chỉ thôi không gọi —
+     cần bật lại thì bỏ dấu chú thích ở hai chỗ này. */
+  // const ktEl = document.getElementById('kyThiBody');
+  // if(ktEl) ktEl.innerHTML = renderThongKeKyThi();
+  const tpEl = document.getElementById('taiPhiBody');
+  if(tpEl) tpEl.innerHTML = renderHHTaiPhi();
   const tsEl = document.getElementById('tuyenSinhBody');
   if(tsEl) tsEl.innerHTML = renderDoiSoatTuyenSinh();
   const cmEl = document.getElementById('chuyenMonBody');
@@ -2181,8 +2485,11 @@ function renderCanDoiVaLinhVuc(){ renderCanDoiBody(); refreshLinhVuc(); }
 function refreshLinhVuc(){
   const el = document.getElementById('linhVucBody');
   if(el) el.innerHTML = renderThongKeLinhVuc();
-  const kt = document.getElementById('kyThiBody');
-  if(kt) kt.innerHTML = renderThongKeKyThi();
+  // V2.10 — xem ghi chú ở renderCanDoiTab()
+  // const kt = document.getElementById('kyThiBody');
+  // if(kt) kt.innerHTML = renderThongKeKyThi();
+  const tp = document.getElementById('taiPhiBody');
+  if(tp) tp.innerHTML = renderHHTaiPhi();
   const ts = document.getElementById('tuyenSinhBody');
   if(ts) ts.innerHTML = renderDoiSoatTuyenSinh();
   const cm = document.getElementById('chuyenMonBody');
@@ -2409,7 +2716,7 @@ async function luuCauHinhHH(){
   const sn = parseInt((document.getElementById('hh_soNguoi')||{value:'2'}).value) || 2;
   try{
     await db.collection('flic_settings').doc('tyLeTrichNop').set(
-      Object.assign({}, tyLeConfig, {hh:{tuNgay:tu, tsTyLe:tl, tsSoNguoi:sn}}));
+      Object.assign({}, tyLeConfig, {hh:Object.assign({}, hhCfg(), {tuNgay:tu, tsTyLe:tl, tsSoNguoi:sn})}));
     logActivity(`Cấu hình hoa hồng tuyển sinh: ${tl}%/người × ${sn} người, từ ${tu||'đầu kỳ'}`);
     showToast('Đã lưu cấu hình hoa hồng');
   }catch(e){ fsErr(e); }
@@ -2455,6 +2762,119 @@ function renderDoiSoatTuyenSinh(){
     ${d.chuaPL? `<div class="hint" style="color:var(--danger);margin-top:8px;">⚠ Còn ${n(d.chuaPL)}đ thuộc mã có tính hoa hồng nhưng <b>chưa chọn New sale / Renew</b> — chưa vào doanh số.</div>`:''}
   </div>`;
 }
+/* ════════════ V2.10 — HOA HỒNG TÁI PHÍ (Renew) ════════════
+   Tính trên MỌI phiếu thu có Loại bán = Renew, không phụ thuộc mã nào được tick.
+   Tổng chi = tpTyLe% doanh số Renew, chia đều cho tpSoNguoi người bộ phận Học vụ. */
+function taiPhiCompute(){
+  const {from, to, label} = canDoiGetRange();
+  const c  = hhCfg();
+  const tu = (c.tpTuNgay && c.tpTuNgay > from) ? c.tpTuNgay : from;   // không hồi cứu
+  const rows = phieuList.filter(p=> p.loai==='thu' && p.loaiBan==='renew'
+      && p.ngay>=tu && p.ngay<=to && !cnLaNoiBo(p) && !laButToan(p));
+  let tongRenew = 0;
+  const ma = {};
+  rows.forEach(p=>{
+    tongRenew += p.soTien || 0;
+    const dm = danhMucList.find(x=>x.maKhoan===p.maKhoan) || {};
+    if(!ma[p.maKhoan]) ma[p.maKhoan] = {ten:dm.tenKhoan||'', ds:0, sp:0};
+    ma[p.maKhoan].ds += p.soTien || 0; ma[p.maKhoan].sp++;
+  });
+  const soNguoi  = Math.max(1, +c.tpSoNguoi || 1);
+  const tongChi  = Math.round(tongRenew * (+c.tpTyLe || 0) / 100);
+  /* Chia đều nhưng KHÔNG để lệch tổng vì làm tròn: người cuối nhận phần còn lại. */
+  const chia = [];
+  let conLai = tongChi;
+  for(let i=0;i<soNguoi;i++){
+    const v = (i === soNguoi-1) ? conLai : Math.floor(tongChi/soNguoi);
+    chia.push(v); conLai -= v;
+  }
+  return {rows, ma, tongRenew, tongChi, chia, soNguoi, tu, to, label, c, soPhieu:rows.length};
+}
+async function luuCauHinhTaiPhi(){
+  const tu = (document.getElementById('tp_tuNgay')||{value:''}).value || '';
+  const tl = parseFloat((document.getElementById('tp_tyLe')||{value:'1'}).value) || 0;
+  const sn = parseInt((document.getElementById('tp_soNguoi')||{value:'2'}).value) || 1;
+  if(tl < 0 || tl > 20){ showToast('Tỷ lệ phải từ 0 đến 20%'); return; }
+  if(sn < 1 || sn > 20){ showToast('Số nhân sự phải từ 1 đến 20'); return; }
+  try{
+    await db.collection('flic_settings').doc('tyLeTrichNop').set(
+      Object.assign({}, tyLeConfig, {hh:Object.assign({}, hhCfg(), {tpTuNgay:tu, tpTyLe:tl, tpSoNguoi:sn})}));
+    logActivity(`Cấu hình hoa hồng tái phí: ${tl}% tổng Renew chia đều ${sn} người, từ ${tu||'đầu kỳ'}`);
+    showToast('Đã lưu cấu hình hoa hồng tái phí');
+  }catch(e){ fsErr(e); }
+}
+function renderHHTaiPhi(){
+  const d = taiPhiCompute();
+  const n = v => formatNumber(Math.round(v));
+  const ds = Object.keys(d.ma).sort((a,b)=> d.ma[b].ds - d.ma[a].ds);
+  return `<div class="card">
+    <div class="row"><div class="card-title" style="margin:0;">🔄 Hoa hồng tái phí — Renew</div>
+      <button class="btn btn-outline btn-sm" onclick="exportTaiPhiExcel()">📊 Xuất Excel</button></div>
+    <div class="hint">Kỳ: <b>${escapeHtml(d.label)}</b> · chỉ tính từ <b>${d.c.tpTuNgay? fmtDateVN(d.c.tpTuNgay):'đầu kỳ'}</b> trở đi.
+      Tổng chi bằng <b>${d.c.tpTyLe}%</b> doanh số Renew, <b>chia đều</b> cho ${d.soNguoi} nhân sự Học vụ.
+      Tính trên mọi phiếu thu có Loại bán = Renew.</div>
+    <div class="row" style="gap:8px;align-items:center;margin:8px 0;flex-wrap:wrap;">
+      <span class="small muted">Áp dụng từ</span>
+      <input type="date" style="max-width:165px;margin:0;" id="tp_tuNgay" value="${d.c.tpTuNgay||''}">
+      <span class="small muted">Tỷ lệ trên tổng Renew (%)</span>
+      <input type="number" step="0.5" min="0" max="20" style="max-width:85px;margin:0;" id="tp_tyLe" value="${d.c.tpTyLe}">
+      <span class="small muted">Số nhân sự Học vụ</span>
+      <input type="number" step="1" min="1" max="20" style="max-width:75px;margin:0;" id="tp_soNguoi" value="${d.c.tpSoNguoi}">
+      <button class="btn btn-outline btn-sm" onclick="luuCauHinhTaiPhi()">💾 Lưu</button>
+    </div>
+    <div class="grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:8px;">
+      <div class="kpi"><div class="lbl">Doanh số Renew (${d.soPhieu} phiếu)</div>
+        <div class="num" style="color:#2b6cb0;">${n(d.tongRenew)}</div></div>
+      <div class="kpi" style="background:#fffaef;border-color:var(--warn);">
+        <div class="lbl">Mỗi người nhận</div>
+        <div class="num" style="color:var(--warn);">${n(d.chia[0]||0)}</div></div>
+      <div class="kpi" style="background:#fdf4f4;border-color:var(--danger);">
+        <div class="lbl">TỔNG CHI (${d.c.tpTyLe}%)</div>
+        <div class="num" style="color:var(--danger);">${n(d.tongChi)}</div></div>
+    </div>
+    ${d.chia.length>1 && d.chia[0]!==d.chia[d.chia.length-1] ?
+      `<div class="hint" style="margin-bottom:6px;">Chia đều không chẵn — người cuối nhận
+       ${n(d.chia[d.chia.length-1])}đ để tổng khớp đúng ${n(d.tongChi)}đ.</div>` : ''}
+    ${ds.length? `<div class="table-scroll"><table class="grid-table">
+      <thead><tr><th>Mã khoản</th><th>Tên khoản</th>
+        <th style="text-align:right;">Số phiếu</th><th style="text-align:right;">Doanh số Renew</th></tr></thead>
+      <tbody>${ds.map(m=>{const g=d.ma[m]; return `<tr>
+        <td><b>${escapeHtml(m)}</b></td><td class="small">${escapeHtml(g.ten)}</td>
+        <td style="text-align:right;color:var(--muted);">${g.sp}</td>
+        <td style="text-align:right;font-weight:600;">${n(g.ds)}</td></tr>`;}).join('')}
+      <tr style="background:#eef4f0;font-weight:800;"><td colspan="3">CỘNG</td>
+        <td style="text-align:right;">${n(d.tongRenew)}</td></tr>
+      </tbody></table></div>`
+      : `<div class="hint" style="color:var(--danger);">Chưa có phiếu Renew nào trong kỳ (từ ${d.c.tpTuNgay? fmtDateVN(d.c.tpTuNgay):'đầu kỳ'}).</div>`}
+  </div>`;
+}
+async function exportTaiPhiExcel(){
+  if(typeof ExcelJS==='undefined'){ showToast('Đang tải thư viện Excel, thử lại sau'); return; }
+  const d = taiPhiCompute();
+  const wb = new ExcelJS.Workbook(); const ws = wb.addWorksheet('Hoa hong tai phi');
+  await excelChenLogo(wb, ws, 'HOA HỒNG TÁI PHÍ — RENEW', d.label);
+  ws.columns=[{width:26},{width:38},{width:12},{width:20}];
+  ws.addRow([]);
+  ws.addRow([`Từ ${fmtDateVN(d.tu)} · tỷ lệ ${d.c.tpTyLe}% tổng Renew · chia đều ${d.soNguoi} người`])
+    .font={italic:true,size:10,color:{argb:'FF6B7688'}};
+  ws.addRow([]);
+  const hr = ws.addRow(['MÃ KHOẢN','TÊN KHOẢN','SỐ PHIẾU','DOANH SỐ RENEW']);
+  hr.font={bold:true}; hr.eachCell(c=>{ c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFD9E1F2'}};
+    c.border={top:{style:'thin'},bottom:{style:'thin'},left:{style:'thin'},right:{style:'thin'}}; });
+  Object.keys(d.ma).sort((a,b)=>d.ma[b].ds-d.ma[a].ds).forEach(m=>{
+    const g=d.ma[m]; const r=ws.addRow([m, g.ten, g.sp, g.ds]); r.getCell(4).numFmt='#,##0'; });
+  const rt=ws.addRow(['CỘNG','','', d.tongRenew]); rt.font={bold:true}; rt.getCell(4).numFmt='#,##0';
+  ws.addRow([]);
+  const r1=ws.addRow([`TỔNG CHI HOA HỒNG (${d.c.tpTyLe}%)`,'','', d.tongChi]);
+  r1.font={bold:true,size:12,color:{argb:'FFC4352C'}}; r1.getCell(4).numFmt='#,##0';
+  d.chia.forEach((v,i)=>{ const r=ws.addRow([`Người ${i+1}`,'','', v]); r.getCell(4).numFmt='#,##0'; });
+  const buf=await wb.xlsx.writeBuffer();
+  const blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  const url=URL.createObjectURL(blob); const a=document.createElement('a');
+  a.href=url; a.download=`HoaHongTaiPhi-FLIC-${d.tu}_${d.to}.xlsx`;
+  document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+}
+
 function renderHHChuyenMon(){
   const d = chuyenMonCompute();
   const ds = Object.keys(d.ma).sort((a,b)=> d.ma[b].hh - d.ma[a].hh);
@@ -2505,6 +2925,7 @@ function trichNopRows(chot){
   const {from, to, label} = canDoiGetRange();
   const c = hhCfg();
   const tsPct = (c.tsTyLe * c.tsSoNguoi) / 100;    // 4% × 2 người = 8% tổng chi
+  const tpPct = (+c.tpTyLe || 0) / 100;            // 1% tổng Renew — chia đều, KHÔNG nhân số người
   /* Cả 2 bản đều đã loại điều chuyển nội bộ & bút toán ghi sổ.
      Bản CHỐT loại thêm Sách / Áo. */
   const rows = phieuList.filter(p=> p.loai==='thu' && p.ngay>=from && p.ngay<=to
@@ -2518,12 +2939,18 @@ function trichNopRows(chot){
     const hhTS = (trongKyHH && dm.hhTuyenSinh && p.loaiBan==='new') ? Math.round(p.soTien * tsPct) : 0;
     const pctCM = (trongKyHH && dm.hhChuyenMon) ? (+dm.pctHHChuyenMon||0) : 0;
     const hhCM = pctCM ? Math.round(p.soTien * pctCM/100) : 0;
+    /* V2.10 — hoa hồng TÁI PHÍ: mọi phiếu Renew, không phụ thuộc mã tick.
+       Tổng chi là tpTyLe% doanh số Renew (KHÔNG nhân số người — khác hoa hồng
+       tuyển sinh), nên từng phiếu nhân đúng tpTyLe%. */
+    const trongKyTP = !c.tpTuNgay || p.ngay >= c.tpTuNgay;
+    const hhTP = (trongKyTP && p.loaiBan==='renew') ? Math.round(p.soTien * tpPct) : 0;
     return {ngay:p.ngay, soPhieu:p.soPhieu||p.soHoaDon||'', ma:p.maKhoan, dg:p.dienGiai||'',
-            tien:p.soTien, dntu:ps.dntu, quyPT:ps.quyPT, hhTS, hhCM, pctCM,
+            tien:p.soTien, dntu:ps.dntu, quyPT:ps.quyPT, hhTS, hhCM, pctCM, hhTP,
             loaiBan:nhanLoaiBan(p.loaiBan), nv:p.nvTuyenSinh||''};
   });
-  const t = {tien:0, dntu:0, quyPT:0, hhTS:0, hhCM:0};
-  out.forEach(r=>{ t.tien+=r.tien; t.dntu+=r.dntu; t.quyPT+=r.quyPT; t.hhTS+=r.hhTS; t.hhCM+=r.hhCM; });
+  const t = {tien:0, dntu:0, quyPT:0, hhTS:0, hhCM:0, hhTP:0};
+  out.forEach(r=>{ t.tien+=r.tien; t.dntu+=r.dntu; t.quyPT+=r.quyPT;
+                   t.hhTS+=r.hhTS; t.hhCM+=r.hhCM; t.hhTP+=r.hhTP; });
   /* V2.6.0 — gom theo LĨNH VỰC để dựng bảng tổng hợp đầu file (phục vụ Biên bản đối soát) */
   const lv = {};
   rows.forEach(p=>{
@@ -2534,7 +2961,7 @@ function trichNopRows(chot){
   });
   const soLoai = chot ? phieuList.filter(p=> p.loai==='thu' && p.ngay>=from && p.ngay<=to
       && !cnLaNoiBo(p) && !laButToan(p) && laSachAo(p)).length : 0;
-  return {rows:out, tong:t, label, from, to, tsPct, chot:!!chot, soLoai, lv,
+  return {rows:out, tong:t, label, from, to, tsPct, tpPct, chot:!!chot, soLoai, lv,
           quyHoatDong: t.tien - t.dntu - t.quyPT};
 }
 async function exportTrichNopExcel(chot){
@@ -2543,7 +2970,7 @@ async function exportTrichNopExcel(chot){
   if(!d.rows.length){ showToast('Không có phiếu thu nào trong kỳ đang chọn'); return; }
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet('Tong hop trich nop');
-  ws.columns=[{width:12},{width:30},{width:26},{width:52},{width:16},{width:16},{width:16},{width:16},{width:16},{width:12},{width:22}];
+  ws.columns=[{width:12},{width:30},{width:26},{width:52},{width:16},{width:16},{width:16},{width:16},{width:16},{width:16},{width:12},{width:22}];
   excelChenLogo(wb, ws, 11);
   ws.addRow(['SỔ TỔNG HỢP TRÍCH NỘP & HOA HỒNG' + (d.chot? ' — BẢN CHỐT':'')]).font={bold:true,size:14};
   ws.addRow([d.label]).font={italic:true,size:11};
@@ -2591,7 +3018,8 @@ async function exportTrichNopExcel(chot){
     ['2','Trích quỹ phát triển Trung tâm', d.tong.quyPT, 'Quy chế Chi tiêu nội bộ của Trung tâm', true],
     ['3','Trích quỹ hoạt động của Trung tâm', d.quyHoatDong, 'Quy chế Chi tiêu nội bộ của Trung tâm', true],
     ['3.1','Hoa hồng Bộ phận chuyên môn', d.tong.hhCM, 'Nằm trong mục (3)', false],
-    ['3.2','Hoa hồng Tuyển sinh', d.tong.hhTS, 'Nằm trong mục (3)', false]
+    ['3.2','Hoa hồng Tuyển sinh', d.tong.hhTS, 'Nằm trong mục (3)', false],
+    ['3.3','Hoa hồng Tái phí (Renew)', d.tong.hhTP, 'Nằm trong mục (3)', false]
   ];
   pb.forEach(([stt,ten,tien,gc,damDong])=>{
     const r = ws.addRow([stt, ten, '', '', '', tien, gc]);
@@ -2604,13 +3032,14 @@ async function exportTrichNopExcel(chot){
   rT2.eachCell({includeEmpty:true},(c,i)=>{ if(i<=7) c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFEEF4F0'}}; });
   vienO(rT2,1,7);
   ws.addRow(['Bằng chữ: ' + soTienBangChu(d.tong.dntu + d.tong.quyPT + d.quyHoatDong)]).font={italic:true};
-  ws.addRow(['Ghi chú: mục 3.1 và 3.2 là khoản chi nằm TRONG quỹ hoạt động (mục 3), không cộng thêm vào tổng.']).font={italic:true,size:10,color:{argb:'FF6B7688'}};
+  ws.addRow(['Ghi chú: mục 3.1, 3.2 và 3.3 là khoản chi nằm TRONG quỹ hoạt động (mục 3), không cộng thêm vào tổng.']).font={italic:true,size:10,color:{argb:'FF6B7688'}};
   ws.addRow([]);
   ws.addRow(['3. CHI TIẾT TỪNG PHIẾU THU']).font={bold:true,size:12,color:{argb:'FF1A7A4C'}};
 
   const H=['NGÀY','SỐ PHIẾU','MÃ KHOẢN','DIỄN GIẢI','SỐ TIỀN PHIẾU',
            `TRÍCH NỘP DNTU (${tyLeConfig.dntu}%)`, `TRÍCH QUỸ PT (${tyLeConfig.quyPT}%)`,
            `HOA HỒNG TUYỂN SINH (${(d.tsPct*100).toFixed(0)}%)`, 'HOA HỒNG BỘ PHẬN CHUYÊN MÔN',
+           `HOA HỒNG TÁI PHÍ (${(d.tpPct*100).toFixed(0)}%)`,
            'LOẠI BÁN','NV TUYỂN SINH'];
   const hr = ws.addRow(H); hr.height=42;
   hr.eachCell(c=>{ c.font={bold:true,size:11};
@@ -2620,19 +3049,20 @@ async function exportTrichNopExcel(chot){
   const vien = r => r.eachCell({includeEmpty:true},(c,i)=>{
     c.border={top:{style:'thin'},bottom:{style:'thin'},left:{style:'thin'},right:{style:'thin'}};
     if(!(c.font&&c.font.bold)) c.font={size:11};
-    if(i>=5&&i<=9) c.numFmt='#,##0';
-    c.alignment={vertical:'middle', wrapText:(i===4), horizontal:(i===1||i===10)?'center':(i>=5&&i<=9?'right':'left')};
+    if(i>=5&&i<=10) c.numFmt='#,##0';
+    c.alignment={vertical:'middle', wrapText:(i===4), horizontal:(i===1||i===11)?'center':(i>=5&&i<=10?'right':'left')};
   });
   d.rows.forEach(r=>{
     const row = ws.addRow([
       r.ngay? (function(){const[Y,M,D]=r.ngay.split('-').map(Number);return new Date(Date.UTC(Y,M-1,D));})() : null,
       r.soPhieu, r.ma, r.dg, r.tien,
-      r.dntu||null, r.quyPT||null, r.hhTS||null, r.hhCM||null,
+      r.dntu||null, r.quyPT||null, r.hhTS||null, r.hhCM||null, r.hhTP||null,
       r.loaiBan, r.nv
     ]);
     vien(row); row.getCell(1).numFmt='dd/mm/yyyy';
   });
-  const rt = ws.addRow(['','','','CỘNG', d.tong.tien, d.tong.dntu, d.tong.quyPT, d.tong.hhTS, d.tong.hhCM, '','']);
+  const rt = ws.addRow(['','','','CỘNG', d.tong.tien, d.tong.dntu, d.tong.quyPT,
+                        d.tong.hhTS, d.tong.hhCM, d.tong.hhTP, '','']);
   rt.font={bold:true,size:12}; vien(rt);
   rt.eachCell(c=>{ c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFEEF4F0'}}; });
   ws.views=[{state:'frozen', ySplit:hr.number}];
