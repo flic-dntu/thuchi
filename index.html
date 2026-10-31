@@ -1,6 +1,60 @@
 <!DOCTYPE html>
 <!--
 ================================================================================
+  SỔ THU CHI FLIC  —  V2.11.0   (31/10/2026)
+  Tinh chỉnh hiển thị theo góp ý khi dùng thật
+================================================================================
+  Nền: V2.10.0 (30/10/2026). Ghi chú V2.10.0 và V2.8.0 giữ nguyên ở dưới.
+
+  CAM KẾT VỀ SỐ LIỆU
+  ------------------
+  Bản này CHỈ đổi phần NHÌN. So với V2.10.0 chỉ 1 hàm đổi (renderKhoiTNCN —
+  hàm vẽ khối Thuế TNCN) và thêm 1 hàm mới (toggleTNCNChiTiet — nút đóng/mở).
+  So với V2.8.0 anh đã tin dùng: 174/179 hàm giống hệt từng byte.
+  KHÔNG chạm tới: tonQuyHienTai() · cnPhatSinh() · cnThucNhan() · cnCoTrich()
+  · cnTinhTNCN() · cnTNCNMode() · laNgoaiDoanhThu() · congNoCompute()
+  · quyPTCompute() · mọi hàm xuất Excel.
+  Tỷ lệ trích giữ nguyên: DNTU 20% · Quỹ phát triển 15% · TNCN chia 9.
+
+  1. Ô "TỒN QUỸ ĐÃ TRỪ KHOẢN NGOÀI DỊCH VỤ" VỀ SÁT SỐ TỒN QUỸ
+  -----------------------------------------------------------
+  Trước nằm dạt mép phải màn hình, trên màn rộng hai con số cách nhau cả gang
+  tay nên khó đối chiếu. Nay đứng ngay cạnh nhau, đọc được trong một tầm mắt.
+  (CSS .tq-top: justify-content space-between -> flex-start, gap 18 -> 34px)
+
+  2. THANH TAB NỀN XANH THƯƠNG HIỆU
+  ---------------------------------
+  V2.10.0 để thanh tab nền trắng, cả đầu trang bị nhạt, không phân biệt được
+  vùng điều hướng với vùng nội dung. Nay thanh tab cùng tông xanh với nút Lưu
+  phiếu; tab đang mở tô đậm hơn (#0f5533) và có vạch vàng #f5c84b dưới chân.
+
+  3. KHỐI THUẾ TNCN Ở TAB CÔNG NỢ — THU GỌN
+  -----------------------------------------
+  Cách tính từng phiếu đã chốt xong nên bảng chi tiết kèm nút màu từng dòng
+  làm rối mắt khi dùng hằng ngày.
+  · Mặc định chỉ hiện: tiêu đề · 4 ô số (Nghĩa vụ · Đã trả lại · Đã nộp ·
+    Còn phải nộp) · một dòng tóm tắt "N phiếu thuộc diện khấu trừ, đang tắt X,
+    Y phiếu tính theo Gộp".
+  · Bấm nút "▸ Xem chi tiết & sửa cách tính" thì hiện lại ĐẦY ĐỦ như cũ:
+    ô cấu hình (Áp dụng từ ngày · Thực nhận ÷ · Gộp × %), dòng hướng dẫn, và
+    bảng từng phiếu kèm nút đổi cách tính. Bấm "▾ Thu gọn" để gấp lại.
+  · KHÔNG mất chức năng nào — chỉ giấu đi cho đỡ rối.
+  · Trạng thái đóng/mở sống trong phiên làm việc, không ghi xuống Firestore:
+    tải lại trang là gọn lại.
+
+  ĐÃ KIỂM CHỨNG TRƯỚC KHI PHÁT HÀNH
+  ---------------------------------
+  · Đối chiếu md5 toàn bộ hàm với V2.10.0 và V2.8.0 — đúng như liệt kê ở trên,
+    0 hàm bị mất.
+  · Render ảnh bản thật cả hai trạng thái (thu gọn / mở rộng), bấm nút chạy đúng.
+  · Cú pháp JS sạch.
+
+  ĐƯỜNG LUI: up lại V2.10.0 hoặc V2.8.0. Bản này không đổi cấu trúc dữ liệu
+  trên Firestore, không đổi luật Firestore, không đổi Cloud Function.
+================================================================================
+-->
+<!--
+================================================================================
   SỔ THU CHI FLIC  —  V2.10.0   (30/10/2026)
   Giao diện mới · Tồn quỹ đã trừ khoản ngoài dịch vụ · Hoa hồng tái phí
 ================================================================================
@@ -198,19 +252,21 @@
   .role-chip:hover{border-color:var(--primary);background:#f6fbf8;}
   .row{display:flex;justify-content:space-between;align-items:center;gap:8px;}
 
-  /* V2.9 — tab phẳng, chỉ gạch chân màu thương hiệu. Bản cũ tô nền xanh cả ô
-     làm tab đang chọn nặng hơn mọi thứ khác trên màn hình. */
-  .tabbar{display:flex;background:#fff;border-bottom:1px solid var(--border);position:sticky;top:62px;z-index:40;overflow-x:auto;padding:0 10px;}
+  /* V2.11 — thanh tab nền xanh thương hiệu, cùng tông với nút Lưu phiếu.
+     Bản V2.10 để nền trắng nên cả đầu trang bị nhạt, không phân biệt được
+     vùng điều hướng với vùng nội dung. Tab đang mở tô đậm hơn và có vạch
+     vàng dưới chân để mắt bắt ngay. */
+  .tabbar{display:flex;background:var(--primary);border-bottom:none;position:sticky;top:62px;z-index:40;
+          overflow-x:auto;padding:0 10px;box-shadow:0 2px 6px rgba(15,85,51,.18);}
   .tabbar button{
     flex:1;padding:13px 6px 14px;background:none;border:none;font-size:13px;font-weight:600;
-    color:var(--muted);cursor:pointer;white-space:nowrap;position:relative;
-    transition:color .18s ease;
+    color:rgba(255,255,255,.80);cursor:pointer;white-space:nowrap;position:relative;
+    transition:color .18s ease, background .18s ease;
   }
-  .tabbar button:hover{color:var(--text);}
-  .tabbar button.active{color:var(--primary-dark);font-weight:700;}
+  .tabbar button:hover:not(.active){color:#fff;background:rgba(255,255,255,.10);}
+  .tabbar button.active{background:var(--primary-dark);color:#fff;font-weight:700;}
   .tabbar button.active:after{
-    content:'';position:absolute;left:8px;right:8px;bottom:0;height:2.5px;
-    background:var(--primary);border-radius:3px 3px 0 0;
+    content:'';position:absolute;left:0;right:0;bottom:0;height:3px;background:#f5c84b;
   }
 
   .section-tab{display:flex;gap:6px;padding:10px 12px;overflow-x:auto;background:var(--bg);}
@@ -258,7 +314,9 @@
      không phải doanh thu dịch vụ. Dòng dưới tách theo từng nguồn tiền để thủ quỹ
      đối soát thẳng với từng sao kê. */
   .tq{padding:17px 18px 14px;}
-  .tq-top{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;flex-wrap:wrap;}
+  /* V2.11 — ô "đã trừ khoản ngoài dịch vụ" đứng SÁT số tồn quỹ, không dạt mép phải:
+     hai con số liên quan nhau thì phải đọc được trong một tầm mắt. */
+  .tq-top{display:flex;align-items:flex-start;justify-content:flex-start;gap:34px;flex-wrap:wrap;}
   .tq-lb{font-size:12px;font-weight:600;color:var(--muted);margin-bottom:4px;}
   .tq-big{font-size:30px;font-weight:800;letter-spacing:-.025em;line-height:1;
           font-variant-numeric:tabular-nums;}
@@ -428,7 +486,7 @@
       <div class="vline"></div>
       <div>
         <h1>Sổ Thu Chi</h1>
-        <div class="ver">Phiên bản: V2.10.0</div>
+        <div class="ver">Phiên bản: V2.11.0</div>
       </div>
     </div>
     <div class="row" style="gap:8px;">
@@ -631,6 +689,10 @@ const TNCN_MA_MAC_DINH = ['CP-Luong-L2','CP-Luong-L3','CP-HĐDV','CP-HDT','CP-QU
 /* V1.7.2 */
 let chiDinhKyList = [];          // khoản chi định kỳ hàng tháng
 let cnAsOf = '';                 // mốc "tính đến ngày" (rỗng = tính hết)
+/* V2.11 — khối Thuế TNCN mặc định THU GỌN: chỉ 4 ô số. Cách tính từng phiếu đã
+   chốt xong nên bảng chi tiết chỉ mở khi cần sửa. Biến này sống trong phiên làm
+   việc, không ghi xuống Firestore — tải lại trang là gọn lại. */
+let tncnMoRong = false;
 let editingDanhMucId = null;
 let editingUserId = null;
 
@@ -4082,6 +4144,7 @@ function renderKhoiTNCN(){
         ${chua.length? `<div style="margin-top:8px;"><button class="btn btn-primary btn-sm" onclick="danhDauMaTNCN()">⚡ Đánh dấu ${chua.length} mã này</button></div>`:''}
         <div class="small muted" style="margin-top:6px;">App vẫn tính đúng dù chưa bấm — đánh dấu chỉ để Danh Mục thể hiện rõ ràng cho kế toán xem.</div>
       </div>`; })()}
+    ${tncnMoRong ? `
     <div class="row" style="gap:8px;align-items:center;margin:8px 0;flex-wrap:wrap;">
       <span class="small muted">Áp dụng từ ngày</span>
       <input type="date" style="max-width:170px;margin:0;" id="cn_tncnTuNgay" value="${tu}">
@@ -4090,7 +4153,7 @@ function renderKhoiTNCN(){
       <span class="small muted">Gộp × (%)</span>
       <input type="number" step="0.1" style="max-width:80px;margin:0;" id="cn_tncnTyLe" value="${+tyLeConfig.tncnTyLe||10}">
       <button class="btn btn-outline btn-sm" onclick="luuCauHinhTNCN()">💾 Lưu</button>
-    </div>
+    </div>` : ''}
     <div class="grid" style="grid-template-columns:repeat(4,1fr);margin:10px 0;">
       <div class="kpi"><div class="lbl">Nghĩa vụ phải nộp</div><div class="num" style="color:var(--warn);">${n(nghiaVu)}</div></div>
       <div class="kpi"><div class="lbl">Người nhận đã trả lại</div><div class="num" style="color:var(--ok);">${n(daThuLai)}</div></div>
@@ -4098,11 +4161,15 @@ function renderKhoiTNCN(){
       <div class="kpi" style="background:#fffaef;border-color:var(--warn);"><div class="lbl">CÒN PHẢI NỘP</div>
         <div class="num" style="color:var(--danger);">${n(nghiaVu-daNop)}</div></div>
     </div>
+    <div class="row" style="align-items:center;gap:10px;flex-wrap:wrap;${tncnMoRong?'margin-bottom:6px;':''}">
+      <div class="hint" style="margin:0;">${ungVien.length} phiếu thuộc diện khấu trừ${soTat?` · đang tắt <b>${soTat}</b>`:''}${soGop?` · <b>${soGop}</b> phiếu tính theo Gộp`:''}.</div>
+      <button class="btn btn-outline btn-sm" onclick="toggleTNCNChiTiet()">${tncnMoRong?'▾ Thu gọn':'▸ Xem chi tiết & sửa cách tính'}</button>
+    </div>
+    ${tncnMoRong ? `
     <div class="hint" style="margin-bottom:6px;">Bấm nút cột cuối để đổi cách tính:
       <b style="color:var(--ok);">Thực nhận</b> (chi đã trừ thuế → ÷${chia}) →
       <b style="color:#2b6cb0;">Gộp</b> (quên trừ thuế, chi cả gộp → ×${+tyLeConfig.tncnTyLe||10}%) →
-      <b style="color:var(--muted);">Tắt</b> (trả cho tổ chức có hoá đơn).
-      ${soTat?`Đang tắt ${soTat} phiếu. `:''}${soGop?`Có ${soGop} phiếu tính theo Gộp.`:''}</div>
+      <b style="color:var(--muted);">Tắt</b> (trả cho tổ chức có hoá đơn).</div>
     <div class="table-scroll" style="max-height:440px;overflow:auto;">
     <table class="grid-table"><thead><tr>
       <th>Ngày</th><th>Mã khoản</th><th>Diễn giải</th>
@@ -4122,8 +4189,14 @@ function renderKhoiTNCN(){
       <td colspan="3">CỘNG (chỉ phiếu đang bật)</td>
       <td style="text-align:right;">${n(tongChi)}</td>
       <td style="text-align:right;color:#9a6a00;font-size:15px;">${n(nghiaVu)}</td><td></td></tr>
-    </tbody></table></div>
+    </tbody></table></div>` : ''}
   </div>`;
+}
+
+/* V2.11 — đóng/mở bảng chi tiết Thuế TNCN. Không đụng dữ liệu, chỉ vẽ lại tab. */
+function toggleTNCNChiTiet(){
+  tncnMoRong = !tncnMoRong;
+  if(typeof renderCongNoTab === 'function') renderCongNoTab();
 }
 
 /* Xoay vòng 3 trạng thái: Thực nhận -> Gộp -> Tắt -> Thực nhận */
